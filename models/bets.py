@@ -1,8 +1,8 @@
 # Betting workflow functions
 # {filename: c:/Users/cigba/sports_app/bets.py}
 
-import models
-import predict
+import logic.models as models
+import logic.predict as predict
 import results
 
 def place_bets():

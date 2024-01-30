@@ -3,32 +3,37 @@
 import transform
 import authenticate
 import integrate
-import bets
+import models.bets as bets
 import database
-import models
+import logic.models as models
+import asyncio
+from errors.logger import log_error
 
-def orchestrate(event_data):
-    # Get new game data
-    game_data = models.transform_event_data(event_data)
-    
-    # Save to database
-    database.save_game_data(game_data)
-    
-    # Make bets
-    bet_result = bets.place_bets(game_data)
-    
-    # Log bet results
-    database.save_bet_results(bet_result)
+async def orchestrate(event_data):
+    try:
+        # Get new game data
+        game_data = await transform_event_data(event_data)
+        
+        # Save to database
+        await save_game_data(game_data)
+        
+        # Make bets
+        bet_result = await place_bets(game_data)
+        
+        # Log bet results
+        await save_bet_results(bet_result)
+        
+    except Exception as e:
+        log_error(f"Orchestration failed: {e}")
+        
+async def transform_event_data(event_data):
+    return await transform.process()
 
-# Orchestration functions
-def transform_data():
-    """Handles data transformation"""
-    return transform.process()
+async def save_game_data(game_data):
+    return database.save_game_data(game_data)
 
-def handle_auth():
-   """Manages user authentication"""
-   return authenticate.verify()
-   
-def integrate_systems():
-   """Integrates with legacy systems"""
-   return integrate.ingest()
+async def place_bets(game_data):  
+    return bets.place_bets(game_data)
+
+async def save_bet_results(bet_result):
+    return database.save_bet_results(bet_result)

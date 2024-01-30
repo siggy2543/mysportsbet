@@ -1,6 +1,7 @@
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 import pandas as pd
+import pickle
 
 # Dummy function to load your dataset
 def load_dataset():
@@ -43,3 +44,41 @@ def make_predictions(games_df):
     predictions = model.predict(new_games[features])
     
     return predictions
+
+# Load existing model if available
+model_file = 'model.pkl'
+if model_file in os.listdir():
+   with open(model_file, 'rb') as f:
+      model = pickle.load(f)
+# Train and save new model  
+else:   
+   # Train model
+   X_train, X_test, y_train, y_test = train_test_split(X, y)  
+   model = LogisticRegression()
+   model.fit(X_train, y_train)
+    
+   # Save model 
+   with open(model_file, 'wb') as f:
+      pickle.dump(model, f)
+
+# Model training function
+def train_model(X, y):
+    model = LogisticRegression()
+    model.fit(X, y)
+    return model
+
+# Load model if exists or train new one
+if os.path.exists(model_file):
+    model = pickle.load(open(model_file, "rb")) 
+else:
+    df = load_dataset()
+    X = df[['feature1', 'feature2']] 
+    y = df['label']
+    model = train_model(X, y)
+    pickle.dump(model, open(model_file, "wb"))
+
+def make_predictions(X):
+    return model.predict(X)
+      
+# Make predictions   
+predictions = model.predict(X_test)
