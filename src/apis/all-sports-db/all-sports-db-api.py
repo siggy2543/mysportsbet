@@ -1,11 +1,12 @@
-import requests
+import apis.request.requests as requests
+import os
 
 url = "https://allsportdb-com.p.rapidapi.com/calendar"
 
 querystring = {"objectType":"0"}
 
 headers = {
-	"X-RapidAPI-Key": "SIGN-UP-FOR-KEY",
+	"X-RapidAPI-Key": os.getenv("RAPIDAPI_KEY"),
 	"X-RapidAPI-Host": "allsportdb-com.p.rapidapi.com"
 }
 

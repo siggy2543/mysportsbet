@@ -1,49 +1,30 @@
+from flask import Flask, request
 import jwt
 
-# Use JWT for authentication instead of sessions
-def login(username, password):
-    # Authenticate user
-    token = jwt.encode({
-        "username": username, 
-        "exp": datetime.utcnow() + timedelta(days=1)  
-    }, app.config["SECRET_KEY"])
-    
-    return {"token": token}
+SECRET_KEY = 'your-secret-key'  # Define your secret key here
 
-def protected_route(function):
-    @wraps(function)
-    def wrap(*args, **kwargs):
-        token = request.headers.get("Authorization") 
+app = Flask(__name__)
+
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization', None)
+        if not token:
+            return jsonify({'message': 'Missing token'}), 403
         try:
-            jwt.decode(token, app.config["SECRET_KEY"])
-            return function(*args, **kwargs)
+            data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
         except:
-            return "Invalid token", 401
-    return wrap
-# JWT based authentication instead of sessions
-
-def create_token(user):
-    """Generates a JSON Web Token for the user"""
-    token = jwt.encode({'username': user.username}, SECRET_KEY, algorithm='HS256')
-    return token
-
-def validate_token(token):
-    """Validates if the JWT token is valid"""
-    try:
-        data = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-        return data
-    except:
-        return None
-# Auth routes and token handling
-
-from flask import app
-
+            return jsonify({'message': 'Invalid token'}), 403
+        return f(*args, **kwargs)
+    return decorated
 
 @app.route('/login', methods=['POST'])
 def login():
     # Validate credentials and return JWT
-    
+    pass
+
 @app.route('/protected')
 @require_auth
 def protected():
     # Protected endpoint
+    pass

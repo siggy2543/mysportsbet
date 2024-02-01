@@ -31,12 +31,3 @@ def place_bets():
     else:
         return "Bad bet"
     
-  """   # Calculate odds of each outcome
-    odds = {}
-    for game in predictions:
-        odds[game['id']] = models.calculate_odds(game)
-        
-    # Filter and select most favorable bets
-    best_bets = models.select_best_bets(predictions, odds)
-    
-    return best_bets """

@@ -1,4 +1,4 @@
-import requests
+import apis.request.requests as requests
 
 url = "https://sportspage-feeds.p.rapidapi.com/rankings"
 

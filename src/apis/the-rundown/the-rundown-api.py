@@ -1,4 +1,4 @@
-import requests
+import apis.request.requests as requests
 
 url = "https://therundown-therundown-v1.p.rapidapi.com/sports"
 

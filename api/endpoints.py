@@ -21,8 +21,11 @@
     - GET: Get user details 
     - PUT: Update user """
     
+""" from .endpoints import users  # Import the "users" module
+
 sports_app/
-  endpoints/
-    predictions.py
-    users.py 
-    teams.py
+    endpoints/
+        predictions.py
+        users.py 
+        teams.py
+ """
