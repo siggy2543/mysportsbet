@@ -1,6 +1,6 @@
 import apis.request.requests as requests
 import logger
-import database
+import databases
 
 from api_integration import place_bet
 import apis.request.requests as requests
@@ -57,7 +57,7 @@ def place_parlay_bet(api_url, selected_bets, headers):
     try:
         bet_payload = create_bet_payload(selected_bets)
         response = requests.post(api_url, json=bet_payload, headers=headers)
-        database.log_bet(bet_payload)
+        databases.log_bet(bet_payload)
     except requests.exceptions.RequestException as e:
         logger.error("Failed to place bet: %s" % e)
         return {}

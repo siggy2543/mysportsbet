@@ -1,10 +1,10 @@
 # {filename: c:/Users/cigba/sports_app/orchestrator.py}
 
-import transform
+import transforms
 import authenticate
 import integrate
 import models.bets as bets
-import database
+import databases
 import logic.models as models
 import asyncio
 from errors.logger import log_error
@@ -27,13 +27,13 @@ async def orchestrate(event_data):
         log_error(f"Orchestration failed: {e}")
         
 async def transform_event_data(event_data):
-    return await transform.process()
+    return await transforms.process()
 
 async def save_game_data(game_data):
-    return database.save_game_data(game_data)
+    return databases.save_game_data(game_data)
 
 async def place_bets(game_data):  
     return bets.place_bets(game_data)
 
 async def save_bet_results(bet_result):
-    return database.save_bet_results(bet_result)
+    return databases.save_bet_results(bet_result)

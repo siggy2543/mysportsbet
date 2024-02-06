@@ -10,3 +10,4 @@ celery
 airflow
 pytest
 jwt
+python-dotenv 
