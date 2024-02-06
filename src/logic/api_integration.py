@@ -1,4 +1,4 @@
-import requests
+import apis.request.requests as requests
 from logger import log_error, log_info
 
 # This module contains the functions to interact with the sports betting API. 

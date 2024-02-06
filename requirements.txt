@@ -1,2 +1,13 @@
 Flask
 requests
+pandas
+sklearn
+numpy
+prometheus_client
+psycopg2
+sqlalchemy
+celery
+airflow
+pytest
+jwt
+python-dotenv 

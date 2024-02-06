@@ -1,0 +1,66 @@
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+*.egg
+venv/
+env/
+build/
+dist/
+
+# Database
+*.db
+*.sqlite3
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Test outputs
+test-reports/
+
+# Packaging
+*.egg
+*.egg-info/
+dist/
+build/
+*.tgz
+
+# Caches
+__pycache__/
+*.py[cod]
+
+# Project files
+.pytest_cache/
+
+# Airflow
+airflow_db.sqlite3
+
+# Docker
+docker-compose.yml
+.dockerignore
+
+# Betting data
+data/*.csv
+data/*.json
+
+# Logs
+*.log
+
+# Misc
+.cache/
+*.bak
+*.tmp
