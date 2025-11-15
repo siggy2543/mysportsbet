@@ -1,0 +1,197 @@
+services:
+  # Backend API
+  api:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.production
+    entrypoint: ["python", "-m", "uvicorn", "app:app"]
+    command: ["--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://sports_user:sports_pass@postgres:5432/sports_betting
+      - REDIS_URL=redis://redis:6379
+      - DEBUG=false
+      - ENVIRONMENT=production
+      - WORKERS=4
+      # New API Keys and Services
+      - ESPN_API_KEY=${ESPN_API_KEY}
+      - ESPN_API_URL=${ESPN_API_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - DRAFTKINGS_USERNAME=${DRAFTKINGS_USERNAME}
+      - DRAFTKINGS_PASSWORD=${DRAFTKINGS_PASSWORD}
+      - DRAFTKINGS_STATE=${DRAFTKINGS_STATE}
+      - DRAFTKINGS_API_URL=${DRAFTKINGS_API_URL}
+      # Risk Management
+      - MAX_SINGLE_BET=${MAX_SINGLE_BET}
+      - MAX_DAILY_EXPOSURE=${MAX_DAILY_EXPOSURE}
+      - MIN_CONFIDENCE_THRESHOLD=${MIN_CONFIDENCE_THRESHOLD}
+      - BANKROLL_SIZE=${BANKROLL_SIZE}
+      # Security
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      # Cache Configuration
+      - CACHE_TTL=${CACHE_TTL}
+      - PREDICTION_CACHE_TTL=${PREDICTION_CACHE_TTL}
+      # Celery Configuration
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+    networks:
+      - sports-network
+    restart: unless-stopped
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.production
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - api
+    networks:
+      - sports-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: sports_betting
+      POSTGRES_USER: sports_user
+      POSTGRES_PASSWORD: sports_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - sports-network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sports-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - api
+      - frontend
+    networks:
+      - sports-network
+    restart: unless-stopped
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.production
+    command: ["python", "-m", "celery", "-A", "app.celery", "worker", "--loglevel=info", "--concurrency=2"]
+    environment:
+      - DATABASE_URL=postgresql://sports_user:sports_pass@postgres:5432/sports_betting
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=true
+      # New API Keys and Services
+      - ESPN_API_KEY=${ESPN_API_KEY}
+      - ESPN_API_URL=${ESPN_API_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - DRAFTKINGS_USERNAME=${DRAFTKINGS_USERNAME}
+      - DRAFTKINGS_PASSWORD=${DRAFTKINGS_PASSWORD}
+      - DRAFTKINGS_STATE=${DRAFTKINGS_STATE}
+      - DRAFTKINGS_API_URL=${DRAFTKINGS_API_URL}
+      # Risk Management
+      - MAX_SINGLE_BET=${MAX_SINGLE_BET}
+      - MAX_DAILY_EXPOSURE=${MAX_DAILY_EXPOSURE}
+      - MIN_CONFIDENCE_THRESHOLD=${MIN_CONFIDENCE_THRESHOLD}
+      - BANKROLL_SIZE=${BANKROLL_SIZE}
+      # Security
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      # Cache Configuration
+      - CACHE_TTL=${CACHE_TTL}
+      - PREDICTION_CACHE_TTL=${PREDICTION_CACHE_TTL}
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+    networks:
+      - sports-network
+    restart: unless-stopped
+
+  # Celery Beat Scheduler
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.production
+    command: ["python", "-m", "celery", "-A", "app.celery", "beat", "--loglevel=info", "--scheduler=celery.beat:PersistentScheduler"]
+    environment:
+      - DATABASE_URL=postgresql://sports_user:sports_pass@postgres:5432/sports_betting
+      - REDIS_URL=redis://redis:6379
+      - ENVIRONMENT=production
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP=true
+      # New API Keys and Services
+      - ESPN_API_KEY=${ESPN_API_KEY}
+      - ESPN_API_URL=${ESPN_API_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+      - DRAFTKINGS_USERNAME=${DRAFTKINGS_USERNAME}
+      - DRAFTKINGS_PASSWORD=${DRAFTKINGS_PASSWORD}
+      - DRAFTKINGS_STATE=${DRAFTKINGS_STATE}
+      - DRAFTKINGS_API_URL=${DRAFTKINGS_API_URL}
+      # Risk Management
+      - MAX_SINGLE_BET=${MAX_SINGLE_BET}
+      - MAX_DAILY_EXPOSURE=${MAX_DAILY_EXPOSURE}
+      - MIN_CONFIDENCE_THRESHOLD=${MIN_CONFIDENCE_THRESHOLD}
+      - BANKROLL_SIZE=${BANKROLL_SIZE}
+      # Security
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      # Cache Configuration
+      - CACHE_TTL=${CACHE_TTL}
+      - PREDICTION_CACHE_TTL=${PREDICTION_CACHE_TTL}
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./backend:/app
+    networks:
+      - sports-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  sports-network:
+    driver: bridge

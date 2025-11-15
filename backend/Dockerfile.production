@@ -1,0 +1,163 @@
+# =============================================================================
+# PRODUCTION-OPTIMIZED DOCKERFILE FOR BACKEND - FIXED VERSION
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Base Dependencies Builder
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim as base-builder
+
+# Build arguments for optimization
+ARG BUILDKIT_INLINE_CACHE=1
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
+# Security labels
+LABEL maintainer="Sports Betting Team"
+LABEL version="1.0"
+LABEL description="Production-optimized sports betting backend"
+
+# Environment variables for build optimization
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_ROOT_USER_ACTION=ignore
+
+# Install build dependencies in a single layer
+RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    gcc \
+    g++ \
+    libpq-dev \
+    libffi-dev \
+    libssl-dev \
+    curl \
+    git \
+    build-essential \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy production requirements first for better Docker layer caching
+COPY requirements-prod.txt ./requirements.txt
+
+# Install wheel to speed up package installation
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Create a virtual environment for dependencies
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python dependencies with optimizations
+RUN pip install --no-cache-dir -r requirements.txt && \
+    find /opt/venv -name "*.pyc" -delete && \
+    find /opt/venv -name "__pycache__" -type d -exec rm -rf {} + || true
+
+# -----------------------------------------------------------------------------
+# Stage 2: Production Runtime
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim as production
+
+# Runtime arguments
+ARG APP_VERSION=latest
+ARG BUILD_DATE
+ARG VCS_REF
+
+# Metadata labels
+LABEL org.opencontainers.image.title="Sports Betting Backend"
+LABEL org.opencontainers.image.description="AI-powered sports betting application backend"
+LABEL org.opencontainers.image.version=${APP_VERSION}
+LABEL org.opencontainers.image.created=${BUILD_DATE}
+LABEL org.opencontainers.image.revision=${VCS_REF}
+LABEL org.opencontainers.image.vendor="Sports Betting Team"
+
+# Runtime environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH="/app" \
+    PATH="/opt/venv/bin:$PATH" \
+    ENVIRONMENT="production" \
+    WORKERS="4"
+
+# Install only runtime dependencies with retry mechanism
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && apt-get autoremove -y
+
+# Create non-root user for security
+RUN groupadd -r appuser --gid=1000 && \
+    useradd -r -g appuser --uid=1000 --home=/app --shell=/bin/bash appuser
+
+# Create app directory with proper permissions
+WORKDIR /app
+
+# Copy virtual environment from builder stage
+COPY --from=base-builder /opt/venv /opt/venv
+
+# Copy application code with proper ownership
+COPY --chown=appuser:appuser . .
+
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/logs /app/temp && \
+    chown -R appuser:appuser /app && \
+    chmod -R 755 /app
+
+# Remove any sensitive files that might have been copied
+RUN find /app -name "*.pyc" -delete && \
+    find /app -name "__pycache__" -type d -exec rm -rf {} + || true && \
+    rm -f /app/.env /app/.env.* || true
+
+# Copy and setup entrypoint script (before switching to appuser)
+COPY --chmod=755 entrypoint.sh /entrypoint.sh
+
+# Switch to non-root user
+USER appuser
+
+# Expose application port
+EXPOSE 8000
+
+# Add comprehensive health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Use flexible entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default CMD (gunicorn for API service)
+CMD ["gunicorn", "app:app", "--config", "gunicorn.conf.py"]
+
+# -----------------------------------------------------------------------------
+# Stage 3: Development Runtime
+# -----------------------------------------------------------------------------
+FROM production as development
+
+# Switch back to root for development tools installation
+USER root
+
+# Install development tools
+RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    vim \
+    htop \
+    postgresql-client \
+    redis-tools \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Switch back to app user
+USER appuser
+
+# Override CMD for development with hot reload
+CMD ["uvicorn", "app:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--reload", \
+     "--log-level", "debug"]
