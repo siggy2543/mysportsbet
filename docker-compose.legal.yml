@@ -1,0 +1,111 @@
+# Legal Production Docker Configuration
+# Runs betting analysis service in compliance with all ToS
+version: '3.8'
+
+services:
+  legal-betting-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.legal
+    container_name: legal_betting_api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://sports_user:sports_pass@postgres:5432/sports_betting
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./logs/api:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: legal_postgres
+    environment:
+      POSTGRES_DB: sports_betting
+      POSTGRES_USER: sports_user
+      POSTGRES_PASSWORD: sports_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./logs/postgres:/var/log/postgresql
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: legal_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./logs/redis:/var/log/redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb
+
+  legal-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.legal
+    container_name: legal_frontend
+    ports:
+      - "3000:3000"
+      - "443:443"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_MODE=legal_analysis
+    volumes:
+      - ./logs/nginx:/var/log/nginx
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - legal-betting-api
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: legal_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: legal_grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  default:
+    name: legal_betting_network

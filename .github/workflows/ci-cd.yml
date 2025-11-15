@@ -1,0 +1,520 @@
+name: CI/CD Pipeline - Sports Betting Application
+
+on:
+  push:
+    branches: [main, develop, feature/*, release/*]
+  pull_request:
+    branches: [main, develop]
+  release:
+    types: [published]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPOSITORY_BACKEND: sports-app-backend
+  ECR_REPOSITORY_FRONTEND: sports-app-frontend
+  ECS_CLUSTER_DEV: sports-app-dev
+  ECS_CLUSTER_STAGING: sports-app-staging
+  ECS_CLUSTER_PROD: sports-app-prod
+
+jobs:
+  # Job 1: Code Quality and Security Checks
+  code-quality:
+    name: Code Quality & Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install black flake8 mypy pytest pytest-cov bandit safety
+
+      - name: Install Node.js dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Python code formatting check
+        run: |
+          cd backend
+          black --check --diff .
+
+      - name: Python linting
+        run: |
+          cd backend
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Python type checking
+        run: |
+          cd backend
+          mypy . --ignore-missing-imports
+
+      - name: Python security scan
+        run: |
+          cd backend
+          bandit -r . -ll
+          safety check
+
+      - name: Frontend linting
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: Frontend type checking
+        run: |
+          cd frontend
+          npm run type-check
+
+      - name: Dockerfile linting
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: backend/Dockerfile.production
+          failure-threshold: warning
+
+      - name: Dockerfile linting (Frontend)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: frontend/Dockerfile.production
+          failure-threshold: warning
+
+  # Job 2: Backend Testing
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: code-quality
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov pytest-mock
+
+      - name: Run backend tests
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379/0
+          ENVIRONMENT: testing
+          JWT_SECRET: test_jwt_secret
+        run: |
+          cd backend
+          pytest --cov=. --cov-report=xml --cov-report=term-missing -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: backend/coverage.xml
+          flags: backend
+          name: backend-coverage
+
+  # Job 3: Frontend Testing
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: code-quality
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Run frontend tests
+        run: |
+          cd frontend
+          npm test -- --coverage --watchAll=false
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: frontend/coverage/lcov.info
+          flags: frontend
+          name: frontend-coverage
+
+  # Job 4: Build and Push Docker Images
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [backend-tests, frontend-tests]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/release/'))
+    
+    outputs:
+      backend-image: ${{ steps.backend-image.outputs.image }}
+      frontend-image: ${{ steps.frontend-image.outputs.image }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_BACKEND }}
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_FRONTEND }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push backend image
+        id: backend-image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.production
+          target: production
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_BACKEND }}:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_BACKEND }}:latest
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            APP_VERSION=${{ github.sha }}
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VCS_REF=${{ github.sha }}
+
+      - name: Build and push frontend image
+        id: frontend-image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.production
+          target: production
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_FRONTEND }}:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_FRONTEND }}:latest
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            APP_VERSION=${{ github.sha }}
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VCS_REF=${{ github.sha }}
+            REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL }}
+
+      - name: Run Trivy vulnerability scanner (Backend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_BACKEND }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-backend-results.sarif'
+
+      - name: Run Trivy vulnerability scanner (Frontend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_FRONTEND }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-frontend-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-backend-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab (Frontend)
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-frontend-results.sarif'
+
+  # Job 5: Deploy to Development
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build-and-push
+    if: github.ref == 'refs/heads/develop'
+    environment: development
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to ECS Development
+        run: |
+          # Update ECS service with new image
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER_DEV }} \
+            --service sports-app-dev-app \
+            --force-new-deployment \
+            --task-definition sports-app-dev-app
+
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER_DEV }} \
+            --service sports-app-dev-celery-worker \
+            --force-new-deployment \
+            --task-definition sports-app-dev-celery-worker
+
+      - name: Wait for deployment to complete
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER_DEV }} \
+            --services sports-app-dev-app
+
+      - name: Run health checks
+        run: |
+          # Wait for ALB to be healthy
+          sleep 60
+          
+          # Get ALB DNS name and test health endpoint
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names sports-app-dev-alb \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text)
+          
+          curl -f http://$ALB_DNS/health || exit 1
+
+  # Job 6: Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build-and-push
+    if: startsWith(github.ref, 'refs/heads/release/')
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to ECS Staging
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER_STAGING }} \
+            --service sports-app-staging-app \
+            --force-new-deployment
+
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER_STAGING }} \
+            --service sports-app-staging-celery-worker \
+            --force-new-deployment
+
+      - name: Wait for deployment to complete
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER_STAGING }} \
+            --services sports-app-staging-app
+
+      - name: Run integration tests
+        run: |
+          # Run comprehensive integration tests against staging
+          cd backend
+          pytest tests/integration/ -v --staging
+
+  # Job 7: Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create deployment backup
+        run: |
+          # Create a backup of current task definitions
+          aws ecs describe-task-definition \
+            --task-definition sports-app-prod-app \
+            --query 'taskDefinition' > backup-app-task-def.json
+
+          aws ecs describe-task-definition \
+            --task-definition sports-app-prod-celery-worker \
+            --query 'taskDefinition' > backup-worker-task-def.json
+
+      - name: Deploy to ECS Production (Blue-Green)
+        run: |
+          # Perform blue-green deployment
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER_PROD }} \
+            --service sports-app-prod-app \
+            --force-new-deployment \
+            --deployment-configuration maximumPercent=200,minimumHealthyPercent=100
+
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER_PROD }} \
+            --service sports-app-prod-celery-worker \
+            --force-new-deployment
+
+      - name: Wait for deployment to complete
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER_PROD }} \
+            --services sports-app-prod-app
+
+      - name: Run production health checks
+        run: |
+          sleep 120  # Wait for ALB health checks
+          
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names sports-app-prod-alb \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text)
+          
+          # Comprehensive health checks
+          curl -f https://$ALB_DNS/health || exit 1
+          curl -f https://$ALB_DNS/api/health || exit 1
+
+      - name: Run smoke tests
+        run: |
+          # Run critical path smoke tests
+          cd backend
+          pytest tests/smoke/ -v --production
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed, initiating rollback..."
+          
+          # Rollback to previous task definition
+          aws ecs register-task-definition \
+            --cli-input-json file://backup-app-task-def.json
+          
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER_PROD }} \
+            --service sports-app-prod-app \
+            --task-definition sports-app-prod-app
+
+  # Job 8: Notification
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [deploy-dev, deploy-staging, deploy-production]
+    if: always()
+
+    steps:
+      - name: Notify Slack on Success
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          channel: '#deployments'
+          text: '🚀 Sports Betting App deployed successfully to ${{ github.ref_name }}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack on Failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#deployments'
+          text: '❌ Sports Betting App deployment failed on ${{ github.ref_name }}'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

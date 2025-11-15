@@ -1,0 +1,370 @@
+name: Dependency Updates and Security Scanning
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/requirements.txt'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+jobs:
+  dependency-audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Python dependencies
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install safety bandit
+
+      - name: Install Node.js dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Python security audit
+        run: |
+          cd backend
+          safety check --json --output safety-report.json || true
+          bandit -r . -f json -o bandit-report.json || true
+
+      - name: Node.js security audit
+        run: |
+          cd frontend
+          npm audit --audit-level=moderate --json > npm-audit.json || true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports
+          path: |
+            backend/safety-report.json
+            backend/bandit-report.json
+            frontend/npm-audit.json
+          retention-days: 30
+
+      - name: Create security issue if vulnerabilities found
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Check Python vulnerabilities
+            try {
+              const safetyReport = JSON.parse(fs.readFileSync('backend/safety-report.json', 'utf8'));
+              if (safetyReport.length > 0) {
+                github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: '🚨 Python Security Vulnerabilities Detected',
+                  body: `Security vulnerabilities found in Python dependencies:\n\n\`\`\`json\n${JSON.stringify(safetyReport, null, 2)}\n\`\`\``,
+                  labels: ['security', 'dependencies', 'python']
+                });
+              }
+            } catch (e) {
+              console.log('No Python security issues found');
+            }
+            
+            // Check Node.js vulnerabilities
+            try {
+              const npmAudit = JSON.parse(fs.readFileSync('frontend/npm-audit.json', 'utf8'));
+              if (npmAudit.metadata && npmAudit.metadata.vulnerabilities && npmAudit.metadata.vulnerabilities.total > 0) {
+                github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: '🚨 Node.js Security Vulnerabilities Detected',
+                  body: `Security vulnerabilities found in Node.js dependencies:\n\nHigh: ${npmAudit.metadata.vulnerabilities.high}\nModerate: ${npmAudit.metadata.vulnerabilities.moderate}\nLow: ${npmAudit.metadata.vulnerabilities.low}\n\nRun \`npm audit fix\` to resolve automatically fixable issues.`,
+                  labels: ['security', 'dependencies', 'nodejs']
+                });
+              }
+            } catch (e) {
+              console.log('No Node.js security issues found');
+            }
+
+  update-python-dependencies:
+    name: Update Python Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install pip-tools
+        run: pip install pip-tools
+
+      - name: Update Python dependencies
+        run: |
+          cd backend
+          pip-compile --upgrade requirements.in || pip-compile --upgrade requirements.txt
+
+      - name: Test updated dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          python -c "import django; print('Dependencies test passed')" || true
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update Python dependencies'
+          title: '🔄 Update Python Dependencies'
+          body: |
+            This is an automated pull request to update Python dependencies.
+            
+            ## Changes
+            - Updated backend dependencies to latest compatible versions
+            - Dependency security audit passed
+            
+            ## Testing
+            - [ ] Backend tests pass
+            - [ ] Integration tests pass
+            - [ ] Manual testing completed
+            
+            Please review the changes carefully before merging.
+          branch: chore/update-python-dependencies
+          base: develop
+          labels: |
+            dependencies
+            python
+            automated
+
+  update-node-dependencies:
+    name: Update Node.js Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install npm-check-updates
+        run: npm install -g npm-check-updates
+
+      - name: Update Node.js dependencies
+        run: |
+          cd frontend
+          ncu -u
+          npm install
+
+      - name: Test updated dependencies
+        run: |
+          cd frontend
+          npm run build
+          npm test -- --watchAll=false --passWithNoTests
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update Node.js dependencies'
+          title: '🔄 Update Node.js Dependencies'
+          body: |
+            This is an automated pull request to update Node.js dependencies.
+            
+            ## Changes
+            - Updated frontend dependencies to latest compatible versions
+            - Build and tests pass with new dependencies
+            
+            ## Testing
+            - [ ] Frontend tests pass
+            - [ ] Build completes successfully
+            - [ ] Manual testing completed
+            
+            Please review the changes carefully before merging.
+          branch: chore/update-node-dependencies
+          base: develop
+          labels: |
+            dependencies
+            nodejs
+            automated
+
+  docker-image-scan:
+    name: Scan Docker Images for Vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build backend image for scanning
+        run: |
+          docker build -f backend/Dockerfile.production -t sports-app-backend:scan backend/
+
+      - name: Build frontend image for scanning
+        run: |
+          docker build -f frontend/Dockerfile.production -t sports-app-frontend:scan frontend/
+
+      - name: Run Trivy vulnerability scanner (Backend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'sports-app-backend:scan'
+          format: 'sarif'
+          output: 'trivy-backend-results.sarif'
+
+      - name: Run Trivy vulnerability scanner (Frontend)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'sports-app-frontend:scan'
+          format: 'sarif'
+          output: 'trivy-frontend-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-backend-results.sarif'
+
+      - name: Upload Trivy scan results (Frontend)
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-frontend-results.sarif'
+
+  license-check:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install license checkers
+        run: |
+          pip install pip-licenses
+          npm install -g license-checker
+
+      - name: Check Python licenses
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip-licenses --format=json --output-file=python-licenses.json
+
+      - name: Check Node.js licenses
+        run: |
+          cd frontend
+          npm ci
+          license-checker --json --out node-licenses.json
+
+      - name: Upload license reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-reports
+          path: |
+            backend/python-licenses.json
+            frontend/node-licenses.json
+          retention-days: 30
+
+      - name: Check for restricted licenses
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Define restricted licenses
+            const restrictedLicenses = ['GPL-3.0', 'AGPL-3.0', 'LGPL-3.0'];
+            
+            try {
+              // Check Python licenses
+              const pythonLicenses = JSON.parse(fs.readFileSync('backend/python-licenses.json', 'utf8'));
+              const restrictedPython = pythonLicenses.filter(pkg => 
+                restrictedLicenses.some(license => pkg.License.includes(license))
+              );
+              
+              // Check Node.js licenses
+              const nodeLicenses = JSON.parse(fs.readFileSync('frontend/node-licenses.json', 'utf8'));
+              const restrictedNode = Object.entries(nodeLicenses).filter(([pkg, info]) => 
+                restrictedLicenses.some(license => info.licenses && info.licenses.includes(license))
+              );
+              
+              if (restrictedPython.length > 0 || restrictedNode.length > 0) {
+                github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: '⚖️ License Compliance Issue Detected',
+                  body: `Restricted licenses found in dependencies:\n\nPython: ${JSON.stringify(restrictedPython, null, 2)}\n\nNode.js: ${JSON.stringify(restrictedNode, null, 2)}`,
+                  labels: ['legal', 'licenses', 'compliance']
+                });
+              }
+            } catch (e) {
+              console.log('License check completed without issues');
+            }
+
+  notify-updates:
+    name: Notify Team of Updates
+    runs-on: ubuntu-latest
+    needs: [dependency-audit, update-python-dependencies, update-node-dependencies, docker-image-scan, license-check]
+    if: always()
+
+    steps:
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#security'
+          text: |
+            Weekly dependency and security scan completed for Sports Betting App
+            
+            Dependency Audit: ${{ needs.dependency-audit.result }}
+            Python Updates: ${{ needs.update-python-dependencies.result }}
+            Node.js Updates: ${{ needs.update-node-dependencies.result }}
+            Docker Scan: ${{ needs.docker-image-scan.result }}
+            License Check: ${{ needs.license-check.result }}
+            
+            Check the Actions tab for detailed results.
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

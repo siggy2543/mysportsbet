@@ -1,0 +1,347 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  color: white;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.header-info {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.status {
+  background: #28a745;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 0.8rem;
+}
+
+.update-time {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.bankroll-section {
+  margin-bottom: 30px;
+}
+
+.bankroll-card {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+}
+
+.bankroll-card h3 {
+  margin: 0 0 15px 0;
+  font-size: 1.3rem;
+}
+
+.bankroll-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.bankroll-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+}
+
+.bankroll-item .label {
+  opacity: 0.8;
+}
+
+.bankroll-item .value {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.refresh-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.3s;
+}
+
+.refresh-btn:hover {
+  background: #0056b3;
+}
+
+.loading, .no-recommendations {
+  text-align: center;
+  padding: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+}
+
+.recommendations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 20px;
+}
+
+.recommendation-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.recommendation-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.sport-badge {
+  background: #17a2b8;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: bold;
+}
+
+.bet-info {
+  margin-bottom: 15px;
+}
+
+.bet-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.bet-text {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.confidence {
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.bet-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  font-size: 0.9rem;
+}
+
+.positive {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.negative {
+  color: #dc3545;
+  font-weight: bold;
+}
+
+.bet-amount {
+  color: #ffc107;
+  font-weight: bold;
+}
+
+.risk-badge {
+  font-weight: bold;
+  font-size: 0.8rem;
+}
+
+.odds-section {
+  margin: 15px 0;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+}
+
+.odds-section h4 {
+  margin: 0 0 5px 0;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.odds-grid {
+  display: flex;
+  gap: 20px;
+}
+
+.reasoning {
+  margin: 15px 0;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+}
+
+.reasoning h4 {
+  margin: 0 0 5px 0;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.reasoning p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.manual-betting-notice {
+  background: rgba(255, 193, 7, 0.2);
+  border: 1px solid #ffc107;
+  border-radius: 5px;
+  padding: 10px;
+  margin: 15px 0;
+  text-align: center;
+}
+
+.warning {
+  color: #ffc107;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.btn-primary {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  flex: 1;
+  transition: background 0.3s;
+}
+
+.btn-primary:hover {
+  background: #1e7e34;
+}
+
+.compliance-footer {
+  margin-top: 40px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+}
+
+.compliance-notice h4 {
+  margin: 0 0 10px 0;
+  color: #ffc107;
+}
+
+.compliance-notice ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.compliance-notice li {
+  margin: 5px 0;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+  }
+  
+  .header h1 {
+    font-size: 1.5rem;
+  }
+  
+  .recommendations-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .bankroll-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .bet-details {
+    grid-template-columns: 1fr;
+  }
+}

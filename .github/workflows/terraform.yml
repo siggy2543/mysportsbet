@@ -1,0 +1,403 @@
+name: Terraform Infrastructure Deployment
+
+on:
+  push:
+    branches: [main, develop]
+    paths: 
+      - 'terraform/**'
+      - '.github/workflows/terraform.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      action:
+        description: 'Terraform action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: 1.6.0
+
+jobs:
+  terraform-validate:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Format Check
+        run: |
+          cd terraform
+          terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: |
+          cd terraform
+          terraform init -backend=false
+          terraform validate
+
+      - name: Run tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Run TFLint
+        run: |
+          cd terraform
+          tflint --init
+          tflint
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: terraform/
+          quiet: true
+          soft_fail: true
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+
+      - name: Upload Checkov results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: checkov-results.sarif
+
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: terraform-validate
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+    
+    strategy:
+      matrix:
+        environment: [dev, staging, prod]
+        
+    environment: ${{ matrix.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init \
+            -backend-config="bucket=sports-app-terraform-state" \
+            -backend-config="key=sports-app/${{ matrix.environment }}/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=sports-app-terraform-locks"
+
+      - name: Terraform Plan
+        run: |
+          cd terraform
+          terraform plan \
+            -var-file="terraform-${{ matrix.environment }}.tfvars" \
+            -out="terraform-${{ matrix.environment }}.tfplan"
+
+      - name: Upload plan artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-plan-${{ matrix.environment }}
+          path: terraform/terraform-${{ matrix.environment }}.tfplan
+          retention-days: 5
+
+      - name: Comment PR with plan
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/terraform-${{ matrix.environment }}.tfplan', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Terraform Plan Results for ${{ matrix.environment }}
+              
+              \`\`\`terraform
+              ${plan}
+              \`\`\`
+              
+              Plan saved to: \`terraform-${{ matrix.environment }}.tfplan\``
+            });
+
+  terraform-apply-dev:
+    name: Apply Terraform (Development)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: terraform-validate
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev' && github.event.inputs.action == 'apply')
+    environment: development
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init \
+            -backend-config="bucket=sports-app-terraform-state" \
+            -backend-config="key=sports-app/dev/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=sports-app-terraform-locks"
+
+      - name: Terraform Apply
+        run: |
+          cd terraform
+          terraform apply \
+            -var-file="terraform-dev.tfvars" \
+            -auto-approve
+
+      - name: Terraform Output
+        id: terraform-output
+        run: |
+          cd terraform
+          terraform output -json > terraform-outputs.json
+          echo "outputs=$(cat terraform-outputs.json)" >> $GITHUB_OUTPUT
+
+      - name: Upload outputs
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-outputs-dev
+          path: terraform/terraform-outputs.json
+          retention-days: 30
+
+  terraform-apply-staging:
+    name: Apply Terraform (Staging)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: terraform-validate
+    if: startsWith(github.ref, 'refs/heads/release/') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging' && github.event.inputs.action == 'apply')
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init \
+            -backend-config="bucket=sports-app-terraform-state" \
+            -backend-config="key=sports-app/staging/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=sports-app-terraform-locks"
+
+      - name: Terraform Apply
+        run: |
+          cd terraform
+          terraform apply \
+            -var-file="terraform-staging.tfvars" \
+            -auto-approve
+
+  terraform-apply-prod:
+    name: Apply Terraform (Production)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: terraform-validate
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod' && github.event.inputs.action == 'apply')
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init \
+            -backend-config="bucket=sports-app-terraform-state" \
+            -backend-config="key=sports-app/prod/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=sports-app-terraform-locks"
+
+      - name: Terraform Plan (Production Safety)
+        run: |
+          cd terraform
+          terraform plan \
+            -var-file="terraform-prod.tfvars" \
+            -out="terraform-prod-safety.tfplan"
+
+      - name: Manual Approval Required
+        uses: trstringer/manual-approval@v1
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: siggy2543  # Replace with actual approver GitHub usernames
+          minimum-approvals: 1
+          issue-title: "Production Terraform Deployment Approval Required"
+          issue-body: |
+            Please review the Terraform plan for production deployment.
+            
+            **Branch:** ${{ github.ref }}
+            **Commit:** ${{ github.sha }}
+            **Author:** ${{ github.actor }}
+            
+            Review the plan and approve if ready to proceed.
+
+      - name: Terraform Apply (Production)
+        run: |
+          cd terraform
+          terraform apply \
+            -var-file="terraform-prod.tfvars" \
+            -auto-approve
+
+      - name: Create production deployment tag
+        if: success()
+        run: |
+          git tag -a "prod-deploy-$(date +%Y%m%d-%H%M%S)" -m "Production deployment: ${{ github.sha }}"
+          git push origin --tags
+
+  terraform-destroy:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init \
+            -backend-config="bucket=sports-app-terraform-state" \
+            -backend-config="key=sports-app/${{ github.event.inputs.environment }}/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="dynamodb_table=sports-app-terraform-locks"
+
+      - name: Manual Approval for Destroy
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ github.TOKEN }}
+          approvers: siggy2543  # Replace with actual approver GitHub usernames
+          minimum-approvals: 1
+          issue-title: "⚠️ DESTRUCTIVE ACTION: Terraform Destroy Approval Required"
+          issue-body: |
+            **🚨 WARNING: This will DESTROY infrastructure in ${{ github.event.inputs.environment }} environment! 🚨**
+            
+            **Environment:** ${{ github.event.inputs.environment }}
+            **Requested by:** ${{ github.actor }}
+            **Timestamp:** $(date)
+            
+            This action is IRREVERSIBLE and will delete ALL resources.
+            
+            Only approve if you are absolutely certain this is needed.
+
+      - name: Terraform Destroy
+        run: |
+          cd terraform
+          terraform destroy \
+            -var-file="terraform-${{ github.event.inputs.environment }}.tfvars" \
+            -auto-approve
+
+  notify-infrastructure:
+    name: Notify Infrastructure Changes
+    runs-on: ubuntu-latest
+    needs: [terraform-apply-dev, terraform-apply-staging, terraform-apply-prod, terraform-destroy]
+    if: always()
+
+    steps:
+      - name: Notify Slack
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#infrastructure'
+          text: |
+            Infrastructure deployment completed for Sports Betting App
+            Environment: ${{ github.event.inputs.environment || 'auto-detected' }}
+            Action: ${{ github.event.inputs.action || 'apply' }}
+            Status: ${{ job.status }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

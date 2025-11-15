@@ -1,0 +1,188 @@
+version: '3.8'
+
+services:
+  # Production API with live betting enabled
+  api:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.production
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - AUTO_BETTING_ENABLED=true
+      - DRAFTKINGS_LIVE_BETTING=true
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Enhanced Celery worker for betting tasks
+  celery-worker:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.production
+    command: /entrypoint.sh python -m celery -A app.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=1000
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - AUTO_BETTING_ENABLED=true
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # Celery beat for scheduled betting tasks
+  celery-beat:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.production
+    command: /entrypoint.sh python -m celery -A app.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
+    environment:
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - AUTO_BETTING_ENABLED=true
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./logs:/app/logs
+      - celery-schedule:/tmp
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
+
+  # Production frontend
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile.production
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=https://localhost/api
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
+
+  # Production Nginx with SSL
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/ssl.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - api
+      - frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
+
+  # Production PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=sportsapp
+      - POSTGRES_USER=sportsapp
+      - POSTGRES_PASSWORD=GoSkinsGo2543!Prod
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./logs/postgres:/var/log/postgresql
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.25'
+
+  # Production Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./logs/redis:/var/log/redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
+
+  # Monitoring and logging
+  monitoring:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  celery-schedule:
+    driver: local
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

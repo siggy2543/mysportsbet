@@ -1,0 +1,556 @@
+name: Performance Testing and Monitoring
+
+on:
+  schedule:
+    # Run performance tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      test_duration:
+        description: 'Test duration in minutes'
+        required: true
+        default: '10'
+        type: string
+      concurrent_users:
+        description: 'Number of concurrent users'
+        required: true
+        default: '50'
+        type: string
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+jobs:
+  load-testing:
+    name: Load Testing with Locust
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install testing dependencies
+        run: |
+          pip install locust pandas numpy matplotlib
+          pip install -r backend/requirements.txt
+
+      - name: Create Locust test file
+        run: |
+          cat > locustfile.py << 'EOF'
+          from locust import HttpUser, task, between
+          import random
+          import json
+
+          class SportsAppUser(HttpUser):
+              wait_time = between(1, 3)
+              
+              def on_start(self):
+                  # Login to get authentication token
+                  response = self.client.post("/api/auth/login", json={
+                      "username": "test_user",
+                      "password": "test_password"
+                  })
+                  if response.status_code == 200:
+                      self.token = response.json().get("access_token")
+                      self.headers = {"Authorization": f"Bearer {self.token}"}
+                  else:
+                      self.headers = {}
+
+              @task(3)
+              def get_sports_data(self):
+                  """Test sports data retrieval"""
+                  sports = ["football", "basketball", "baseball", "hockey"]
+                  sport = random.choice(sports)
+                  self.client.get(f"/api/sports/{sport}/games", headers=self.headers)
+
+              @task(2)
+              def get_predictions(self):
+                  """Test prediction endpoint"""
+                  self.client.get("/api/predictions/daily", headers=self.headers)
+
+              @task(1)
+              def place_bet(self):
+                  """Test betting functionality"""
+                  bet_data = {
+                      "game_id": random.randint(1, 100),
+                      "bet_type": random.choice(["moneyline", "spread", "total"]),
+                      "amount": random.uniform(10, 100),
+                      "selection": random.choice(["home", "away", "over", "under"])
+                  }
+                  self.client.post("/api/bets", json=bet_data, headers=self.headers)
+
+              @task(1)
+              def get_portfolio(self):
+                  """Test portfolio retrieval"""
+                  self.client.get("/api/portfolio", headers=self.headers)
+
+              @task(1)
+              def health_check(self):
+                  """Test health endpoint"""
+                  self.client.get("/health")
+          EOF
+
+      - name: Configure test environment
+        run: |
+          echo "TARGET_URL=${{ secrets.TARGET_URL }}" >> $GITHUB_ENV
+          echo "TEST_DURATION=${{ github.event.inputs.test_duration || '10' }}" >> $GITHUB_ENV
+          echo "USERS=${{ github.event.inputs.concurrent_users || '50' }}" >> $GITHUB_ENV
+          echo "SPAWN_RATE=5" >> $GITHUB_ENV
+
+      - name: Run load tests
+        run: |
+          locust \
+            --host=${{ env.TARGET_URL }} \
+            --users=${{ env.USERS }} \
+            --spawn-rate=${{ env.SPAWN_RATE }} \
+            --run-time=${TEST_DURATION}m \
+            --html=locust_report.html \
+            --csv=locust_stats \
+            --headless
+
+      - name: Generate performance report
+        run: |
+          python << 'EOF'
+          import pandas as pd
+          import matplotlib.pyplot as plt
+          import json
+          
+          # Read Locust stats
+          stats = pd.read_csv('locust_stats_stats.csv')
+          failures = pd.read_csv('locust_stats_failures.csv')
+          
+          # Create performance summary
+          summary = {
+              'total_requests': int(stats['Request Count'].sum()),
+              'failure_rate': float(stats['Failure Count'].sum() / stats['Request Count'].sum() * 100),
+              'avg_response_time': float(stats['Average Response Time'].mean()),
+              'max_response_time': float(stats['Max Response Time'].max()),
+              'requests_per_second': float(stats['Requests/s'].mean()),
+              'concurrent_users': int('${{ env.USERS }}'),
+              'test_duration_minutes': int('${{ env.TEST_DURATION }}')
+          }
+          
+          # Save summary as JSON
+          with open('performance_summary.json', 'w') as f:
+              json.dump(summary, f, indent=2)
+          
+          # Create performance charts
+          fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
+          
+          # Response time chart
+          ax1.bar(stats['Name'], stats['Average Response Time'])
+          ax1.set_title('Average Response Time by Endpoint')
+          ax1.set_ylabel('Response Time (ms)')
+          plt.setp(ax1.get_xticklabels(), rotation=45, ha='right')
+          
+          # Requests per second
+          ax2.bar(stats['Name'], stats['Requests/s'])
+          ax2.set_title('Requests per Second by Endpoint')
+          ax2.set_ylabel('Requests/s')
+          plt.setp(ax2.get_xticklabels(), rotation=45, ha='right')
+          
+          # Failure rate
+          failure_rates = stats['Failure Count'] / stats['Request Count'] * 100
+          ax3.bar(stats['Name'], failure_rates)
+          ax3.set_title('Failure Rate by Endpoint')
+          ax3.set_ylabel('Failure Rate (%)')
+          plt.setp(ax3.get_xticklabels(), rotation=45, ha='right')
+          
+          # Request count
+          ax4.bar(stats['Name'], stats['Request Count'])
+          ax4.set_title('Total Requests by Endpoint')
+          ax4.set_ylabel('Request Count')
+          plt.setp(ax4.get_xticklabels(), rotation=45, ha='right')
+          
+          plt.tight_layout()
+          plt.savefig('performance_charts.png', dpi=300, bbox_inches='tight')
+          
+          print(f"Performance test completed:")
+          print(f"Total requests: {summary['total_requests']}")
+          print(f"Failure rate: {summary['failure_rate']:.2f}%")
+          print(f"Average response time: {summary['avg_response_time']:.2f}ms")
+          print(f"Requests per second: {summary['requests_per_second']:.2f}")
+          EOF
+
+      - name: Upload performance artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-test-results
+          path: |
+            locust_report.html
+            locust_stats_*.csv
+            performance_summary.json
+            performance_charts.png
+          retention-days: 30
+
+      - name: Check performance thresholds
+        run: |
+          python << 'EOF'
+          import json
+          import sys
+          
+          with open('performance_summary.json', 'r') as f:
+              results = json.load(f)
+          
+          # Define performance thresholds
+          thresholds = {
+              'max_failure_rate': 1.0,  # 1% max failure rate
+              'max_avg_response_time': 2000,  # 2 seconds max average response time
+              'min_requests_per_second': 10  # Minimum 10 requests per second
+          }
+          
+          failed_checks = []
+          
+          if results['failure_rate'] > thresholds['max_failure_rate']:
+              failed_checks.append(f"Failure rate {results['failure_rate']:.2f}% exceeds threshold {thresholds['max_failure_rate']}%")
+          
+          if results['avg_response_time'] > thresholds['max_avg_response_time']:
+              failed_checks.append(f"Average response time {results['avg_response_time']:.2f}ms exceeds threshold {thresholds['max_avg_response_time']}ms")
+          
+          if results['requests_per_second'] < thresholds['min_requests_per_second']:
+              failed_checks.append(f"Requests per second {results['requests_per_second']:.2f} below threshold {thresholds['min_requests_per_second']}")
+          
+          if failed_checks:
+              print("❌ Performance thresholds failed:")
+              for check in failed_checks:
+                  print(f"  - {check}")
+              sys.exit(1)
+          else:
+              print("✅ All performance thresholds passed!")
+          EOF
+
+  database-performance:
+    name: Database Performance Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: load-testing
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install psycopg2-binary sqlalchemy pandas matplotlib
+
+      - name: Run database performance tests
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+        run: |
+          python << 'EOF'
+          import psycopg2
+          import time
+          import json
+          import matplotlib.pyplot as plt
+          from datetime import datetime
+          
+          # Database connection
+          conn = psycopg2.connect(
+              host='localhost',
+              database='test_db',
+              user='test_user',
+              password='test_password',
+              port=5432
+          )
+          
+          cur = conn.cursor()
+          
+          # Create test tables
+          cur.execute("""
+              CREATE TABLE IF NOT EXISTS games (
+                  id SERIAL PRIMARY KEY,
+                  home_team VARCHAR(100),
+                  away_team VARCHAR(100),
+                  game_date TIMESTAMP,
+                  sport VARCHAR(50),
+                  created_at TIMESTAMP DEFAULT NOW()
+              )
+          """)
+          
+          cur.execute("""
+              CREATE TABLE IF NOT EXISTS bets (
+                  id SERIAL PRIMARY KEY,
+                  game_id INTEGER REFERENCES games(id),
+                  amount DECIMAL(10,2),
+                  bet_type VARCHAR(50),
+                  created_at TIMESTAMP DEFAULT NOW()
+              )
+          """)
+          
+          conn.commit()
+          
+          # Insert test data
+          print("Inserting test data...")
+          start_time = time.time()
+          
+          for i in range(10000):
+              cur.execute("""
+                  INSERT INTO games (home_team, away_team, game_date, sport)
+                  VALUES (%s, %s, %s, %s)
+              """, (f'Team_{i}_Home', f'Team_{i}_Away', datetime.now(), 'football'))
+          
+          conn.commit()
+          insert_time = time.time() - start_time
+          
+          # Test query performance
+          queries = [
+              ("SELECT COUNT(*) FROM games", "count_games"),
+              ("SELECT * FROM games ORDER BY game_date DESC LIMIT 100", "recent_games"),
+              ("SELECT sport, COUNT(*) FROM games GROUP BY sport", "games_by_sport"),
+              ("SELECT g.*, COUNT(b.id) as bet_count FROM games g LEFT JOIN bets b ON g.id = b.game_id GROUP BY g.id LIMIT 100", "games_with_bets")
+          ]
+          
+          results = {
+              'insert_time_seconds': insert_time,
+              'insert_rate_per_second': 10000 / insert_time,
+              'query_performance': {}
+          }
+          
+          for query, name in queries:
+              start_time = time.time()
+              cur.execute(query)
+              rows = cur.fetchall()
+              query_time = time.time() - start_time
+              
+              results['query_performance'][name] = {
+                  'execution_time_ms': query_time * 1000,
+                  'rows_returned': len(rows)
+              }
+              
+              print(f"{name}: {query_time*1000:.2f}ms ({len(rows)} rows)")
+          
+          # Create performance chart
+          query_names = list(results['query_performance'].keys())
+          query_times = [results['query_performance'][name]['execution_time_ms'] for name in query_names]
+          
+          plt.figure(figsize=(10, 6))
+          plt.bar(query_names, query_times)
+          plt.title('Database Query Performance')
+          plt.ylabel('Execution Time (ms)')
+          plt.xticks(rotation=45, ha='right')
+          plt.tight_layout()
+          plt.savefig('database_performance.png', dpi=300, bbox_inches='tight')
+          
+          # Save results
+          with open('database_performance.json', 'w') as f:
+              json.dump(results, f, indent=2)
+          
+          # Check thresholds
+          slow_queries = [name for name, perf in results['query_performance'].items() 
+                         if perf['execution_time_ms'] > 1000]  # 1 second threshold
+          
+          if slow_queries:
+              print(f"⚠️ Slow queries detected: {', '.join(slow_queries)}")
+          else:
+              print("✅ All queries performed within acceptable limits")
+          
+          cur.close()
+          conn.close()
+          EOF
+
+      - name: Upload database performance results
+        uses: actions/upload-artifact@v3
+        with:
+          name: database-performance-results
+          path: |
+            database_performance.json
+            database_performance.png
+          retention-days: 30
+
+  frontend-performance:
+    name: Frontend Performance Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Install Lighthouse
+        run: npm install -g @lhci/cli lighthouse
+
+      - name: Run Lighthouse CI
+        run: |
+          cd frontend
+          npx lhci autorun
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: Bundle size analysis
+        run: |
+          cd frontend
+          npm install -g webpack-bundle-analyzer
+          npx webpack-bundle-analyzer build/static/js/*.js --report --mode static --report-filename bundle-report.html
+
+      - name: Upload frontend performance results
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-performance-results
+          path: |
+            frontend/bundle-report.html
+            frontend/.lighthouseci/
+          retention-days: 30
+
+  performance-report:
+    name: Generate Performance Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [load-testing, database-performance, frontend-performance]
+    if: always()
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate comprehensive report
+        run: |
+          python << 'EOF'
+          import json
+          import os
+          from datetime import datetime
+          
+          report = {
+              'timestamp': datetime.now().isoformat(),
+              'environment': '${{ github.event.inputs.environment || "staging" }}',
+              'test_type': 'automated_performance_testing',
+              'results': {}
+          }
+          
+          # Load performance test results
+          try:
+              with open('performance-test-results/performance_summary.json', 'r') as f:
+                  report['results']['load_testing'] = json.load(f)
+          except FileNotFoundError:
+              report['results']['load_testing'] = {'status': 'failed'}
+          
+          # Load database performance results
+          try:
+              with open('database-performance-results/database_performance.json', 'r') as f:
+                  report['results']['database'] = json.load(f)
+          except FileNotFoundError:
+              report['results']['database'] = {'status': 'failed'}
+          
+          # Generate summary
+          report['summary'] = {
+              'overall_status': 'pass',
+              'recommendations': []
+          }
+          
+          # Check load testing results
+          if 'load_testing' in report['results'] and 'failure_rate' in report['results']['load_testing']:
+              if report['results']['load_testing']['failure_rate'] > 1.0:
+                  report['summary']['overall_status'] = 'warning'
+                  report['summary']['recommendations'].append('High failure rate detected in load testing')
+              
+              if report['results']['load_testing']['avg_response_time'] > 2000:
+                  report['summary']['overall_status'] = 'warning'
+                  report['summary']['recommendations'].append('Average response time exceeds acceptable threshold')
+          
+          # Save comprehensive report
+          with open('performance_report.json', 'w') as f:
+              json.dump(report, f, indent=2)
+          
+          print("Performance Report Generated:")
+          print(f"Overall Status: {report['summary']['overall_status']}")
+          if report['summary']['recommendations']:
+              print("Recommendations:")
+              for rec in report['summary']['recommendations']:
+                  print(f"  - {rec}")
+          EOF
+
+      - name: Upload comprehensive report
+        uses: actions/upload-artifact@v3
+        with:
+          name: comprehensive-performance-report
+          path: performance_report.json
+          retention-days: 90
+
+      - name: Create performance issue if degraded
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚡ Performance Degradation Detected',
+              body: `Performance testing has detected issues with the application.
+              
+              **Environment:** ${{ github.event.inputs.environment || 'staging' }}
+              **Test Date:** ${new Date().toISOString()}
+              **Workflow:** ${context.workflow}
+              **Run:** ${context.runNumber}
+              
+              Please review the performance test results and take corrective action.
+              
+              [View Results](${context.payload.repository.html_url}/actions/runs/${context.runId})`,
+              labels: ['performance', 'bug', 'high-priority']
+            });
+
+      - name: Notify team
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#performance'
+          text: |
+            Performance testing completed for Sports Betting App
+            
+            Environment: ${{ github.event.inputs.environment || 'staging' }}
+            Load Testing: ${{ needs.load-testing.result }}
+            Database Testing: ${{ needs.database-performance.result }}
+            Frontend Testing: ${{ needs.frontend-performance.result }}
+            
+            Check the Actions tab for detailed results.
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

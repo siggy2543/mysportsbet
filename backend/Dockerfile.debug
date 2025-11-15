@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy everything and see what we get
+COPY . .
+
+# List files to debug
+RUN ls -la
+RUN ls -la requirements.txt || echo "requirements.txt not found"
+
+CMD ["echo", "Debug complete"]

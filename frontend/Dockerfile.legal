@@ -1,0 +1,35 @@
+# Legal Sports Betting Analysis - Production Frontend
+FROM node:18-alpine as build
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source code
+COPY . .
+
+# Build for legal analysis mode
+ENV REACT_APP_MODE=legal_analysis
+ENV REACT_APP_API_URL=http://localhost:8000
+
+RUN npm run build
+
+# Production stage with nginx
+FROM nginx:alpine
+
+# Copy built app
+COPY --from=build /app/build /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY nginx-legal.conf /etc/nginx/conf.d/default.conf
+
+# Create logs directory
+RUN mkdir -p /var/log/nginx
+
+EXPOSE 3000 443
+
+CMD ["nginx", "-g", "daemon off;"]
