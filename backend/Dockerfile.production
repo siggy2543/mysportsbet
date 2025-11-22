@@ -155,9 +155,5 @@ RUN apt-get update && apt-get install -y \
 # Switch back to app user
 USER appuser
 
-# Override CMD for development with hot reload
-CMD ["uvicorn", "app:app", \
-     "--host", "0.0.0.0", \
-     "--port", "8000", \
-     "--reload", \
-     "--log-level", "debug"]
+# Override CMD for production with enhanced standalone API
+CMD ["python", "enhanced_standalone_api.py"]

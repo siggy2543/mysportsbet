@@ -1,7 +1,7 @@
 """
 Enhanced Celery tasks for betting operations and system health
 """
-from celery import current_app as celery
+from app import celery
 from datetime import datetime
 import asyncio
 import logging
@@ -48,6 +48,11 @@ def update_game_odds(self, game_id: str):
         
         logger.info(f"Odds updated for game {game_id}")
         return result
+    except Exception as exc:
+        logger.error(f"Error updating odds for game {game_id}: {exc}")
+        if self.request.retries < self.max_retries:
+            raise self.retry(countdown=60, exc=exc)
+        raise
 
 @celery.task(bind=True, max_retries=2)
 def run_automated_betting():

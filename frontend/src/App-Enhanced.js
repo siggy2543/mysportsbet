@@ -1,11 +1,11 @@
 import React from 'react';
-import SimplifiedLiveBettingPlatform from './SimplifiedLiveBettingPlatform';
 import './App.css';
+import EnhancedLiveBettingPlatform from './EnhancedLiveBettingPlatform';
 
 function App() {
   return (
     <div className="App">
-      <SimplifiedLiveBettingPlatform />
+      <EnhancedLiveBettingPlatform />
     </div>
   );
 }

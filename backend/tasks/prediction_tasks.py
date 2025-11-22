@@ -1,7 +1,7 @@
 """
 Celery tasks for prediction operations
 """
-from celery import current_app as celery
+from app import celery
 from datetime import datetime
 
 @celery.task
