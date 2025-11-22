@@ -1,0 +1,112 @@
+{
+  "family": "sports-app-production-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::939309566574:role/sports-app-production-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::939309566574:role/sports-app-production-ecs-task-role",
+  "containerDefinitions": [
+    {
+      "name": "sports-betting-api",
+      "image": "sports-betting-api:production",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "TZ",
+          "value": "America/New_York"
+        },
+        {
+          "name": "TIMEZONE",
+          "value": "EST"
+        },
+        {
+          "name": "API_PORT",
+          "value": "8080"
+        },
+        {
+          "name": "DEBUG",
+          "value": "false"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        },
+        {
+          "name": "LEGAL_MODE",
+          "value": "true"
+        },
+        {
+          "name": "MANUAL_BETTING_ONLY",
+          "value": "true"
+        },
+        {
+          "name": "AUTOMATED_BETTING",
+          "value": "false"
+        },
+        {
+          "name": "MAX_DAILY_AMOUNT",
+          "value": "50.00"
+        },
+        {
+          "name": "BANKROLL",
+          "value": "200.00"
+        },
+        {
+          "name": "KELLY_MULTIPLIER",
+          "value": "0.25"
+        },
+        {
+          "name": "MIN_CONFIDENCE",
+          "value": "65.0"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "us-east-1"
+        },
+        {
+          "name": "AWS_DEFAULT_REGION",
+          "value": "us-east-1"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "/sports-app-production/openai/api-key"
+        },
+        {
+          "name": "THE_ODDS_API_KEY",
+          "valueFrom": "/sports-app-production/the-odds-api/key"
+        },
+        {
+          "name": "BETSAPI_TOKEN",
+          "valueFrom": "/sports-app-production/betsapi/token"
+        }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8080/api/health || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/sports-app-production-api",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

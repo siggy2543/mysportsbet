@@ -1,0 +1,837 @@
+/* Enhanced Interactive Sports Betting Dashboard - Advanced Styling */
+
+.enhanced-interactive-app {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f0f23 0%, #1a1a3a 50%, #2d1b69 100%);
+  color: white;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow-x: hidden;
+}
+
+/* App Header */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 30px;
+  background: rgba(255, 255, 255, 0.05);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.platform-stats {
+  display: flex;
+  gap: 25px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 15px;
+  background: rgba(0, 255, 136, 0.1);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  transition: all 0.3s ease;
+  animation: pulse-subtle 2s infinite;
+}
+
+.stat-item:hover {
+  background: rgba(0, 255, 136, 0.2);
+  transform: translateY(-2px);
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.stat-label {
+  font-size: 0.8em;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 1em;
+  color: #00ff88;
+  font-weight: 700;
+}
+
+.app-title {
+  font-size: 2.2em;
+  font-weight: 700;
+  background: linear-gradient(135deg, #00ff88, #00d4ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin: 0;
+  text-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+}
+
+.header-controls {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.sport-selector {
+  position: relative;
+}
+
+.sport-select {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(0, 255, 136, 0.3);
+  border-radius: 12px;
+  color: white;
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  min-width: 200px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sport-select:hover {
+  border-color: rgba(0, 255, 136, 0.6);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sport-select:focus {
+  outline: none;
+  border-color: #00ff88;
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+}
+
+.refresh-controls {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.auto-refresh-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.auto-refresh-toggle:hover {
+  color: #00ff88;
+}
+
+.auto-refresh-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: #00ff88;
+}
+
+.refresh-button {
+  background: linear-gradient(135deg, #00ff88, #00d4ff);
+  border: none;
+  border-radius: 10px;
+  color: #0f0f23;
+  padding: 12px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 16px;
+}
+
+.refresh-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 255, 136, 0.4);
+}
+
+.refresh-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Status Bar */
+.status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 30px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.status-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.status-label {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.status-value {
+  font-weight: 700;
+  color: #00ff88;
+}
+
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  padding: 20px 30px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tab-button {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid transparent;
+  border-radius: 15px;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 15px 25px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.tab-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  transform: translateY(-2px);
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, #00ff88, #00d4ff);
+  color: #0f0f23;
+  border-color: rgba(0, 255, 136, 0.5);
+  box-shadow: 0 5px 20px rgba(0, 255, 136, 0.3);
+}
+
+/* Tab Content */
+.tab-content {
+  padding: 30px;
+  min-height: 60vh;
+  position: relative;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: rgba(15, 15, 35, 0.8);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  z-index: 100;
+}
+
+.loading-spinner {
+  font-size: 3em;
+  animation: spin 1s linear infinite;
+}
+
+.loading-text {
+  margin-top: 20px;
+  font-size: 1.2em;
+  font-weight: 600;
+  color: #00ff88;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Moneylines Grid */
+.recommendations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 25px;
+}
+
+.recommendation-card {
+  background: rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 25px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.recommendation-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #00ff88, #00d4ff);
+}
+
+.recommendation-card:hover {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 40px rgba(0, 255, 136, 0.2);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.matchup {
+  font-size: 1.3em;
+  font-weight: 700;
+  margin: 0;
+  color: white;
+}
+
+.sport-badge {
+  background: linear-gradient(135deg, #00ff88, #00d4ff);
+  color: #0f0f23;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.8em;
+  font-weight: 700;
+}
+
+.bet-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+}
+
+.bet-type {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: #00ff88;
+}
+
+.odds {
+  font-size: 1.3em;
+  font-weight: 700;
+  color: white;
+}
+
+/* Confidence Section */
+.confidence-section {
+  margin-bottom: 20px;
+}
+
+.confidence-label {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 8px;
+}
+
+.confidence-bar {
+  position: relative;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: all 0.8s ease;
+  position: relative;
+}
+
+.confidence-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.confidence-text {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  font-size: 0.8em;
+  font-weight: 700;
+  color: #0f0f23;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+/* Metrics */
+.metrics-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 15px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  flex: 1;
+  margin: 0 5px;
+}
+
+.metric-label {
+  font-size: 0.8em;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 5px;
+}
+
+.metric-value {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: #00d4ff;
+}
+
+.risk-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.risk-label {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.risk-badge {
+  padding: 4px 12px;
+  border-radius: 15px;
+  font-size: 0.8em;
+  font-weight: 700;
+  color: white;
+}
+
+.game-theory-score {
+  margin-bottom: 15px;
+  padding: 10px;
+  background: rgba(0, 212, 255, 0.1);
+  border-radius: 10px;
+  border-left: 3px solid #00d4ff;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.reasoning {
+  margin-bottom: 15px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  font-size: 0.9em;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.manual-warning {
+  text-align: center;
+  padding: 12px;
+  background: rgba(255, 165, 0, 0.1);
+  border: 1px solid rgba(255, 165, 0, 0.3);
+  border-radius: 10px;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: #ffaa00;
+}
+
+/* Parlays Grid */
+.parlays-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+  gap: 30px;
+}
+
+.parlay-card {
+  background: rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 25px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.parlay-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1);
+}
+
+.parlay-card:hover {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 40px rgba(255, 107, 107, 0.2);
+}
+
+.parlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.parlay-title {
+  font-size: 1.4em;
+  font-weight: 700;
+  margin: 0;
+  color: white;
+}
+
+.parlay-odds {
+  font-size: 1.5em;
+  font-weight: 700;
+  color: #4ecdc4;
+  background: rgba(78, 205, 196, 0.1);
+  padding: 8px 15px;
+  border-radius: 12px;
+}
+
+.parlay-metrics {
+  margin-bottom: 20px;
+}
+
+.parlay-metric {
+  margin-bottom: 15px;
+}
+
+.parlay-payout {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+.payout-amount {
+  font-size: 1.2em;
+  font-weight: 700;
+  color: #00ff88;
+}
+
+.parlay-legs {
+  margin-bottom: 20px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  padding: 15px;
+}
+
+.parlay-leg {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.parlay-leg:last-child {
+  border-bottom: none;
+}
+
+.leg-matchup {
+  font-weight: 600;
+  color: white;
+  flex: 1;
+}
+
+.leg-bet {
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.7);
+  flex: 1;
+  text-align: center;
+}
+
+.leg-confidence {
+  font-weight: 700;
+  color: #00ff88;
+}
+
+.correlation-risk {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 8px;
+  font-size: 0.9em;
+  color: #ff6b6b;
+}
+
+.game-theory-edge {
+  margin-bottom: 15px;
+  padding: 8px 12px;
+  background: rgba(0, 212, 255, 0.1);
+  border-radius: 8px;
+  font-size: 0.9em;
+  color: #00d4ff;
+}
+
+.parlay-reasoning {
+  margin-bottom: 15px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  font-size: 0.9em;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Player Props Grid */
+.player-props-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 25px;
+}
+
+.player-prop-card {
+  background: rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 25px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.player-prop-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #a8e6cf, #dcedc1, #ffd3a5);
+}
+
+.player-prop-card:hover {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 40px rgba(168, 230, 207, 0.2);
+}
+
+.prop-header {
+  margin-bottom: 20px;
+}
+
+.player-name {
+  font-size: 1.3em;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: white;
+}
+
+.game-info {
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.prop-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+}
+
+.prop-type {
+  font-weight: 600;
+  color: #a8e6cf;
+}
+
+.prop-line {
+  font-weight: 700;
+  color: white;
+}
+
+.prop-prediction {
+  margin-bottom: 20px;
+}
+
+.prediction-badge {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background: linear-gradient(135deg, rgba(168, 230, 207, 0.2), rgba(220, 237, 193, 0.2));
+  border-radius: 12px;
+  border: 1px solid rgba(168, 230, 207, 0.3);
+}
+
+.prediction-text {
+  font-weight: 700;
+  font-size: 1.1em;
+  color: #a8e6cf;
+}
+
+.prop-odds {
+  font-weight: 700;
+  color: white;
+}
+
+.prop-reasoning {
+  margin-bottom: 15px;
+  padding: 15px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  font-size: 0.9em;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* No Data State */
+.no-data {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.no-data-icon {
+  font-size: 4em;
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+.no-data-text {
+  font-size: 1.2em;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 30px;
+  max-width: 500px;
+}
+
+.retry-button {
+  background: linear-gradient(135deg, #00ff88, #00d4ff);
+  border: none;
+  border-radius: 12px;
+  color: #0f0f23;
+  padding: 15px 30px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.retry-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 255, 136, 0.4);
+}
+
+/* Footer */
+.app-footer {
+  padding: 20px 30px;
+  background: rgba(0, 0, 0, 0.3);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.footer-info {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  flex-wrap: wrap;
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .app-header {
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+  }
+  
+  .header-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .sport-select {
+    min-width: 150px;
+  }
+  
+  .tab-navigation {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .recommendations-grid,
+  .parlays-grid,
+  .player-props-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .status-bar {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .footer-info {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-title {
+    font-size: 1.5em;
+  }
+  
+  .tab-content {
+    padding: 20px;
+  }
+  
+  .recommendation-card,
+  .parlay-card,
+  .player-prop-card {
+    padding: 20px;
+  }
+}
