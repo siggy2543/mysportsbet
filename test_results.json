@@ -1,0 +1,38 @@
+{
+  "ui_performance": {
+    "caching": {
+      "passed": true,
+      "first_time": 3.410853862762451,
+      "second_time": 2.90545392036438,
+      "improvement": 14.817402408109851
+    },
+    "date_params": {
+      "passed": true
+    }
+  },
+  "ai_learning": {
+    "schema": {
+      "passed": true,
+      "tables": 6
+    },
+    "calibration": {
+      "passed": true,
+      "calibrated_count": 5
+    },
+    "performance_view": {
+      "passed": true
+    }
+  },
+  "date_filtering": {
+    "today_tomorrow": {
+      "passed": true,
+      "today_count": 8,
+      "tomorrow_count": 8
+    },
+    "parlays": {
+      "passed": true,
+      "today_parlays": 5,
+      "tomorrow_parlays": 5
+    }
+  }
+}

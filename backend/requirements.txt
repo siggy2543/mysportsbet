@@ -27,6 +27,9 @@ pandas==2.2.0
 scikit-learn==1.4.0
 scipy==1.11.1
 tensorflow==2.15.0
+xgboost==2.0.3
+keras==2.15.0
+cachetools==5.3.2
 
 # Cache & Message Queue
 redis==5.0.1

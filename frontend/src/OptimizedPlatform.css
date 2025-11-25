@@ -1,0 +1,412 @@
+/* Optimized Betting Platform Styles - Performance Enhanced */
+.optimized-betting-platform {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+  color: #ffffff;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  padding: 20px;
+  will-change: transform;
+}
+
+.header {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  padding: 20px;
+  margin-bottom: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.header-content h1 {
+  margin: 0;
+  font-size: 2em;
+  background: linear-gradient(90deg, #00d4ff 0%, #0099ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9em;
+  color: #00ff88;
+}
+
+.pulse-dot {
+  width: 12px;
+  height: 12px;
+  background: #00ff88;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+.controls {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.sport-selector, .date-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sport-selector select {
+  padding: 10px 15px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 1em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sport-selector select:hover {
+  border-color: #00d4ff;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.date-tabs {
+  display: flex;
+  gap: 10px;
+}
+
+.date-tabs button {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 1em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.date-tabs button.active {
+  background: linear-gradient(135deg, #00d4ff 0%, #0099ff 100%);
+  border-color: #00d4ff;
+  transform: scale(1.05);
+}
+
+.date-tabs button:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.refresh-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 1em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.refresh-btn.active {
+  background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%);
+  border-color: #00ff88;
+  animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.error-banner {
+  background: rgba(255, 50, 50, 0.2);
+  border: 2px solid rgba(255, 50, 50, 0.5);
+  border-radius: 10px;
+  padding: 15px;
+  margin-bottom: 20px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.loading-spinner {
+  text-align: center;
+  padding: 40px;
+  font-size: 1.2em;
+  color: #00d4ff;
+  animation: pulse 1.5s infinite;
+}
+
+.betting-content {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.moneylines-section, .parlays-section {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  padding: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.moneylines-section h2, .parlays-section h2 {
+  margin: 0 0 20px 0;
+  font-size: 1.5em;
+  background: linear-gradient(90deg, #00ff88 0%, #00d4ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.update-time {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.9em;
+  margin-bottom: 15px;
+}
+
+.bets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 20px;
+}
+
+.bet-card {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  will-change: transform;
+}
+
+.bet-card:hover {
+  transform: translateY(-5px);
+  border-color: #00d4ff;
+  box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+}
+
+.bet-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  position: relative;
+}
+
+.bet-icon {
+  font-size: 1.5em;
+}
+
+.bet-header h4 {
+  margin: 0;
+  flex: 1;
+  font-size: 1.1em;
+}
+
+.date-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 0.7em;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.date-badge.today {
+  background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+  box-shadow: 0 0 20px rgba(255, 68, 68, 0.5);
+  animation: glow 2s infinite;
+}
+
+.date-badge.tomorrow {
+  background: linear-gradient(135deg, #4444ff 0%, #0000cc 100%);
+  box-shadow: 0 0 20px rgba(68, 68, 255, 0.5);
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 68, 68, 0.5); }
+  50% { box-shadow: 0 0 30px rgba(255, 68, 68, 0.8); }
+}
+
+.bet-details {
+  margin-bottom: 15px;
+}
+
+.team-odds {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.team-name {
+  font-weight: 500;
+  font-size: 1em;
+}
+
+.odds {
+  background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-weight: bold;
+  color: #000;
+}
+
+.bet-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.confidence {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9em;
+  position: relative;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px 12px;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.confidence-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(0, 255, 136, 0.3) 0%, rgba(0, 212, 255, 0.3) 100%);
+  transition: width 0.5s ease;
+  z-index: 0;
+}
+
+.confidence span:last-child {
+  position: relative;
+  z-index: 1;
+}
+
+.game-time, .payout, .ai-tag {
+  font-size: 0.85em;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.ai-tag {
+  background: linear-gradient(135deg, #9c27b0 0%, #673ab7 100%);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: bold;
+  align-self: flex-start;
+}
+
+.ai-reasoning {
+  margin-top: 15px;
+  padding: 12px;
+  background: rgba(156, 39, 176, 0.2);
+  border-left: 3px solid #9c27b0;
+  border-radius: 6px;
+  font-size: 0.9em;
+  line-height: 1.5;
+}
+
+.ai-reasoning strong {
+  color: #bb86fc;
+}
+
+.parlay-legs {
+  margin-bottom: 15px;
+}
+
+.parlay-leg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.leg-number {
+  background: #00d4ff;
+  color: #000;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.85em;
+}
+
+.leg-matchup {
+  flex: 1;
+  font-size: 0.95em;
+}
+
+.leg-pick {
+  background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: bold;
+  color: #000;
+  font-size: 0.85em;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+  
+  .controls {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .sport-selector, .date-selector {
+    width: 100%;
+  }
+  
+  .sport-selector select {
+    width: 100%;
+  }
+  
+  .bets-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Performance optimizations */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.bet-card, .header, .moneylines-section, .parlays-section {
+  contain: layout style paint;
+}

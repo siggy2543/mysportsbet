@@ -7,21 +7,25 @@ FROM node:18-alpine as build
 
 WORKDIR /app
 
+# Build environment variables - Must be set BEFORE copying source
+ARG REACT_APP_API_URL=
+
 # Copy package files
 COPY package*.json ./
 
 # Install all dependencies (dev dependencies needed for build)
 RUN npm install --silent
 
-# Copy source code
-COPY . .
-
-# Build environment variables
+# Set environment variables for React build
 ENV NODE_ENV=production
 ENV GENERATE_SOURCEMAP=false
 ENV CI=true
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
 
-# Build the application
+# Copy source code
+COPY . .
+
+# Build the application (will use REACT_APP_API_URL from ENV)
 RUN npm run build
 
 # Stage 2: Serve with Nginx
