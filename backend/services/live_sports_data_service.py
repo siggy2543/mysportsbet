@@ -8,7 +8,7 @@ import aiohttp
 import requests
 import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 import os
@@ -69,27 +69,33 @@ class LiveSportsDataService:
             'Serie A': '4332'
         }
 
-    async def get_live_games(self, sport: str) -> List[LiveGame]:
-        """Get live games from TheSportsDB with enhanced daily betting analysis"""
+    async def get_live_games(self, sport: str, target_date: Optional[date] = None) -> List[LiveGame]:
+        """Get live games from TheSportsDB with enhanced daily betting analysis, filtered by date"""
         try:
-            logger.info(f"🔍 Fetching live {sport} games for daily betting analysis - {self.current_date}")
+            # Use target date or default to today in EST
+            import pytz
+            EST_TZ = pytz.timezone('US/Eastern')
+            if target_date is None:
+                target_date = datetime.now(EST_TZ).date()
+            
+            logger.info(f"🔍 Fetching live {sport} games for {target_date} - daily betting analysis")
             
             # Primary: TheSportsDB Live API with premium key
-            thesportsdb_games = await self._get_thesportsdb_premium_games(sport)
+            thesportsdb_games = await self._get_thesportsdb_premium_games(sport, target_date)
             if thesportsdb_games:
-                logger.info(f"✅ Retrieved {len(thesportsdb_games)} live {sport} games from TheSportsDB")
+                logger.info(f"✅ Retrieved {len(thesportsdb_games)} live {sport} games from TheSportsDB for {target_date}")
                 return thesportsdb_games
                 
-            # Fallback to realistic mock data with enhanced betting metrics
-            logger.warning(f"⚠️ Using enhanced mock data for {sport} - implementing betting algorithms")
-            return await self._generate_premium_betting_games(sport)
+            # NO FALLBACK TO MOCK DATA - Return empty list if no real games
+            logger.warning(f"⚠️ No real games found for {sport} on {target_date}")
+            return []
             
         except Exception as e:
             logger.error(f"Error fetching live games for {sport}: {e}")
-            return await self._generate_premium_betting_games(sport)
+            return []
 
-    async def _get_thesportsdb_premium_games(self, sport: str) -> List[LiveGame]:
-        """Fetch games from TheSportsDB Premium API with live key 516953"""
+    async def _get_thesportsdb_premium_games(self, sport: str, target_date: date) -> List[LiveGame]:
+        """Fetch games from TheSportsDB Premium API with live key 516953, filtered by target date"""
         try:
             league_id = self.thesportsdb_league_mapping.get(sport)
             if not league_id:
@@ -116,8 +122,8 @@ class LiveSportsDataService:
                 async with session.get(url, params=params, timeout=15) as response:
                     if response.status == 200:
                         data = await response.json()
-                        games = self._parse_thesportsdb_premium_games(data, sport)
-                        logger.info(f"✅ TheSportsDB returned {len(games)} {sport} games")
+                        games = self._parse_thesportsdb_premium_games(data, sport, target_date)
+                        logger.info(f"✅ TheSportsDB returned {len(games)} {sport} games for {target_date}")
                         return games
                     else:
                         logger.error(f"❌ TheSportsDB error: {response.status} for {url}")
@@ -127,8 +133,8 @@ class LiveSportsDataService:
             logger.error(f"❌ TheSportsDB request failed: {e}")
             return []
 
-    def _parse_thesportsdb_premium_games(self, data: Dict, sport: str) -> List[LiveGame]:
-        """Parse TheSportsDB Premium API response with enhanced betting data"""
+    def _parse_thesportsdb_premium_games(self, data: Dict, sport: str, target_date: date) -> List[LiveGame]:
+        """Parse TheSportsDB Premium API response with enhanced betting data, filtered by target date"""
         games = []
         
         if not data or 'events' not in data:
@@ -136,9 +142,12 @@ class LiveSportsDataService:
             return games
             
         events = data.get('events', [])
-        logger.info(f"🔍 Parsing {len(events)} events from TheSportsDB Premium API")
+        logger.info(f"🔍 Parsing {len(events)} events from TheSportsDB Premium API, filtering for {target_date}")
         
-        for event in events[:10]:  # Limit to 10 games
+        import pytz
+        EST_TZ = pytz.timezone('US/Eastern')
+        
+        for event in events:  # Don't limit here, we'll filter by date
             try:
                 # Enhanced parsing with betting focus
                 home_team = event.get('strHomeTeam', 'Home Team')
@@ -147,14 +156,25 @@ class LiveSportsDataService:
                 event_time = event.get('strTime', '00:00:00')
                 
                 # Parse datetime
-                if event_date and event_time:
-                    try:
-                        start_time = datetime.strptime(f"{event_date} {event_time}", '%Y-%m-%d %H:%M:%S')
-                        start_time = start_time.replace(tzinfo=timezone.utc)
-                    except:
-                        start_time = datetime.now(timezone.utc) + timedelta(hours=2)
-                else:
-                    start_time = datetime.now(timezone.utc) + timedelta(hours=2)
+                if not event_date:
+                    continue  # Skip events without dates
+                    
+                try:
+                    # Parse as UTC then convert to EST for date comparison
+                    start_time = datetime.strptime(f"{event_date} {event_time}", '%Y-%m-%d %H:%M:%S')
+                    start_time = start_time.replace(tzinfo=timezone.utc)
+                    
+                    # Convert to EST for date comparison
+                    start_time_est = start_time.astimezone(EST_TZ)
+                    game_date = start_time_est.date()
+                    
+                    # Filter by target date - only include games on the target date
+                    if game_date != target_date:
+                        continue  # Skip games not on target date
+                        
+                except Exception as e:
+                    logger.warning(f"Could not parse date for event: {event_date} {event_time} - {e}")
+                    continue
                 
                 # Enhanced odds and betting metrics
                 game = LiveGame(
@@ -191,11 +211,15 @@ class LiveSportsDataService:
                 )
                 games.append(game)
                 
+                # Limit to 10 games per date
+                if len(games) >= 10:
+                    break
+                
             except Exception as e:
                 logger.error(f"Error parsing TheSportsDB event: {e}")
                 continue
         
-        logger.info(f"✅ Successfully parsed {len(games)} premium games from TheSportsDB")
+        logger.info(f"✅ Successfully parsed {len(games)} premium games from TheSportsDB for {target_date}")
         return games
 
     def _parse_betsapi_games(self, data: Dict, sport: str) -> List[LiveGame]:
@@ -398,7 +422,12 @@ class LiveSportsDataService:
             return self._generate_mock_predictions(games, sport)
 
     async def _call_openai_async(self, prompt: str) -> str:
-        """Make async call to OpenAI ChatGPT 5.1 Premium API"""
+        """Make async call to OpenAI ChatGPT 5.1 Premium API (Optional - gracefully handles quota/config issues)"""
+        # Check if OpenAI is configured and available
+        if not self.openai_key or self.openai_key == 'your_openai_key_here':
+            logger.info("ℹ️ OpenAI API not configured - skipping AI analysis (using rule-based predictions)")
+            return "{}"
+        
         try:
             import openai
             openai.api_key = self.openai_key
@@ -416,10 +445,15 @@ class LiveSportsDataService:
                 temperature=0.3   # Lower for more consistent predictions
             )
             
+            logger.info("✅ ChatGPT analysis complete")
             return response.choices[0].message.content
             
         except Exception as e:
-            logger.error(f"OpenAI API call failed: {e}")
+            # Log quota errors as info, not errors (expected behavior)
+            if "insufficient_quota" in str(e) or "429" in str(e):
+                logger.info(f"ℹ️ OpenAI quota exceeded - continuing with rule-based predictions")
+            else:
+                logger.warning(f"⚠️ OpenAI API unavailable: {str(e)[:100]} - using rule-based predictions")
             return "{}"
 
     def _parse_ai_predictions(self, ai_response: str, games: List[LiveGame]) -> Dict[str, Any]:
@@ -610,11 +644,11 @@ class LiveSportsDataService:
             
         return games
 
-    async def get_comprehensive_live_data(self, sport: str) -> Dict[str, Any]:
-        """Get comprehensive live data combining all sources"""
+    async def get_comprehensive_live_data(self, sport: str, target_date: Optional[date] = None) -> Dict[str, Any]:
+        """Get comprehensive live data combining all sources, filtered by date"""
         try:
-            # Get live games
-            games = await self.get_live_games(sport)
+            # Get live games for target date (or today if not specified)
+            games = await self.get_live_games(sport, target_date)
             
             # Get AI predictions
             predictions = await self.get_ai_predictions(games, sport)
