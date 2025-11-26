@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './SimplifiedPlatform.css';
 
+// Sport emoji mapping for better UI (outside component)
+const sportEmojiMap = {
+  'basketball': '🏀', 'americanfootball': '🏈', 'icehockey': '🏒', 'baseball': '⚾',
+  'soccer': '⚽', 'tennis': '🎾', 'cricket': '🏏', 'rugby': '🏉', 'formula1': '🏎️',
+  'mma': '🥊', 'boxing': '🥊', 'golf': '⛳', 'cycling': '🚴', 'darts': '🎯',
+  'aussierules': '🏉', 'volleyball': '🏐', 'handball': '🤾', 'waterpolo': '🤽',
+  'tableTennis': '🏓', 'esports': '🎮', 'snooker': '🎱', 'bowls': '🎳'
+};
+
 const SimplifiedLiveBettingPlatform = () => {
   const [selectedSport, setSelectedSport] = useState('NBA');
   const [moneylines, setMoneylines] = useState([]);
@@ -10,6 +19,10 @@ const SimplifiedLiveBettingPlatform = () => {
   const [lastUpdate, setLastUpdate] = useState(null);
   const [isRealTime, setIsRealTime] = useState(true);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  
+  // Dynamic sports loaded from The Odds API (all 149 sports)
+  const [globalSportsOptions, setGlobalSportsOptions] = useState([]);
+  const [sportsLoading, setSportsLoading] = useState(true);
 
   const API_BASE_URL = 'http://localhost:8000';
 
@@ -21,44 +34,50 @@ const SimplifiedLiveBettingPlatform = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Complete Global Sports Options (22+ Sports)
-  const globalSportsOptions = [
-    // US Sports
-    { value: 'NBA', label: '🏀 NBA Basketball', region: 'United States', category: 'US Sports' },
-    { value: 'NFL', label: '🏈 NFL Football', region: 'United States', category: 'US Sports' },
-    { value: 'NHL', label: '🏒 NHL Hockey', region: 'United States/Canada', category: 'US Sports' },
-    { value: 'MLB', label: '⚾ MLB Baseball', region: 'United States', category: 'US Sports' },
+  // Load all 149 sports from The Odds API on mount
+  useEffect(() => {
+    const fetchSports = async () => {
+      try {
+        setSportsLoading(true);
+        const response = await fetch(`${API_BASE_URL}/api/odds/sports`);
+        const data = await response.json();
+        
+        if (data.sports) {
+          const formattedSports = data.sports.map(sport => {
+            const sportKey = sport.group.toLowerCase().replace(/_/g, '');
+            const emoji = sportEmojiMap[sportKey] || sportEmojiMap[sport.key.toLowerCase()] || '🏆';
+            
+            return {
+              value: sport.key,
+              label: `${emoji} ${sport.title}`,
+              region: sport.group,
+              active: sport.active,
+              category: sport.group
+            };
+          });
+          
+          // Sort by active first, then alphabetically
+          formattedSports.sort((a, b) => {
+            if (a.active !== b.active) return b.active - a.active;
+            return a.label.localeCompare(b.label);
+          });
+          
+          setGlobalSportsOptions(formattedSports);
+          console.log(`✅ Loaded ${data.total_sports} sports (${data.active_sports} active)`);
+        }
+      } catch (err) {
+        console.error('Error fetching sports:', err);
+        // Fallback to default NBA
+        setGlobalSportsOptions([
+          { value: 'NBA', label: '🏀 NBA Basketball', region: 'Basketball', active: true, category: 'Basketball' }
+        ]);
+      } finally {
+        setSportsLoading(false);
+      }
+    };
     
-    // Global Soccer
-    { value: 'EPL', label: '⚽ Premier League', region: 'England', category: 'Global Soccer' },
-    { value: 'LALIGA', label: '⚽ La Liga', region: 'Spain', category: 'Global Soccer' },
-    { value: 'BUNDESLIGA', label: '⚽ Bundesliga', region: 'Germany', category: 'Global Soccer' },
-    { value: 'SERIEA', label: '⚽ Serie A', region: 'Italy', category: 'Global Soccer' },
-    { value: 'LIGUE1', label: '⚽ Ligue 1', region: 'France', category: 'Global Soccer' },
-    { value: 'CHAMPIONSLEAGUE', label: '⚽ Champions League', region: 'Europe', category: 'Global Soccer' },
-    
-    // Tennis
-    { value: 'ATP', label: '🎾 ATP Tennis', region: 'Global', category: 'Tennis' },
-    { value: 'WTA', label: '🎾 WTA Tennis', region: 'Global', category: 'Tennis' },
-    
-    // International Sports
-    { value: 'CRICKET', label: '🏏 Cricket', region: 'Global', category: 'International' },
-    { value: 'RUGBY', label: '🏉 Rugby', region: 'Global', category: 'International' },
-    { value: 'FORMULA1', label: '🏎️ Formula 1', region: 'Global', category: 'Motorsports' },
-    
-    // Combat Sports
-    { value: 'MMA', label: '🥊 MMA/UFC', region: 'Global', category: 'Combat Sports' },
-    { value: 'BOXING', label: '🥊 Boxing', region: 'Global', category: 'Combat Sports' },
-    
-    // Individual Sports
-    { value: 'GOLF', label: '⛳ Golf', region: 'Global', category: 'Individual Sports' },
-    { value: 'CYCLING', label: '🚴 Cycling', region: 'Global', category: 'Individual Sports' },
-    { value: 'DARTS', label: '🎯 Darts', region: 'Global', category: 'Individual Sports' },
-    { value: 'SNOOKER', label: '🎱 Snooker', region: 'Global', category: 'Individual Sports' },
-    
-    // E-Sports
-    { value: 'ESPORTS', label: '🎮 E-Sports', region: 'Global', category: 'E-Sports' }
-  ];
+    fetchSports();
+  }, [API_BASE_URL]);
 
   const fetchData = useCallback(async () => {
     if (loading) return;
@@ -127,7 +146,7 @@ const SimplifiedLiveBettingPlatform = () => {
     <div className="enhanced-live-betting-platform">
       <div className="header">
         <div className="header-left">
-          <h1>Enhanced Live Betting Platform</h1>
+          <h1>Enhanced Live Betting Platform - 149 Global Sports</h1>
           <div className="live-indicators">
             <span className="live-dot"></span>
             <span className="live-text">LIVE {currentDateTime.toLocaleTimeString()}</span>
@@ -141,9 +160,10 @@ const SimplifiedLiveBettingPlatform = () => {
           </div>
         </div>
         <div className="sports-selector">
-          <label>Select Sport: </label>
+          <label>Select Sport ({sportsLoading ? '...' : globalSportsOptions.length} available): </label>
           <select 
-            value={selectedSport} 
+            value={selectedSport}
+            disabled={sportsLoading} 
             onChange={(e) => setSelectedSport(e.target.value)}
           >
             {/* Group sports by category */}

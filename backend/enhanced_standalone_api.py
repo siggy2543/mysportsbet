@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Enhanced Production Sports API - Live Global Sports Betting Intelligence
-22+ Sports Coverage with Game Theory Algorithms and Live Parlay Intelligence
-Integrated with BetsAPI, TheSportsDB, and OpenAI ChatGPT
+149 Sports Coverage with Game Theory Algorithms and Live Parlay Intelligence
+Integrated with TheOddsAPI - Best Live Betting Data
 """
 
 from fastapi import FastAPI, HTTPException
@@ -21,7 +21,8 @@ import hashlib
 import time
 import requests
 from urllib.parse import quote
-from services.live_sports_data_service import live_sports_service
+from comprehensive_sports_config import THE_ODDS_API_SPORTS_CONFIG, get_sport_config, get_all_sports
+from services.odds_api_service import get_odds_api_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Enhanced Global Sports Betting API", 
-    version="3.0.0",
-    description="Production-ready live sports betting intelligence with 22+ global sports"
+    version="4.0.0",
+    description="Production-ready live sports betting intelligence with 149 global sports powered by TheOddsAPI"
 )
 
 # Enhanced CORS middleware
@@ -142,8 +143,14 @@ class GameTheoryPredictor:
 # Initialize game theory predictor
 game_theory = GameTheoryPredictor()
 
-# Comprehensive Global Sports Configuration (22+ Sports)
-GLOBAL_SPORTS_CONFIG = {
+# Initialize TheOddsAPI service
+odds_service = get_odds_api_service()
+
+# Use comprehensive sports configuration from comprehensive_sports_config.py
+GLOBAL_SPORTS_CONFIG = THE_ODDS_API_SPORTS_CONFIG
+
+# Legacy config mapping for backward compatibility (DEPRECATED)
+_LEGACY_GLOBAL_SPORTS_CONFIG = {
     # US Major Sports
     'NBA': {
         'category': 'US Sports', 
@@ -409,8 +416,29 @@ async def generate_advanced_moneylines(sport: str, count: int = 8, target_date: 
     if not sport_config.get('season_active', True):
         return []
     
-    # Get comprehensive live data from BetsAPI, TheSportsDB, and OpenAI
-    live_data = await live_sports_service.get_comprehensive_live_data(sport, target_date=target_date)
+    # Get comprehensive live data from TheOddsAPI
+    try:
+        # Fetch real odds from TheOddsAPI
+        odds_events = await odds_service.get_odds(
+            sport=sport,
+            regions=['us', 'us2'],
+            markets=['h2h', 'spreads', 'totals']
+        )
+        live_data = {'games': [], 'timestamp': datetime.now(EST_TZ).isoformat(), 'volume_indicator': 'Medium', 'market_activity': 1.0}
+        
+        # Convert odds events to our internal format
+        for event in odds_events:
+            game_data = {
+                'home_team': event.home_team,
+                'away_team': event.away_team,
+                'start_time': event.commence_time,
+                'odds': event.bookmakers,
+                'id': event.id
+            }
+            live_data['games'].append(game_data)
+    except Exception as e:
+        logger.error(f"Error fetching TheOddsAPI data: {e}")
+        live_data = {'games': [], 'timestamp': datetime.now(EST_TZ).isoformat(), 'volume_indicator': 'Low', 'market_activity': 0.5}
     
     # Extract live market data and game theory context
     live_odds_data = live_data
@@ -629,8 +657,17 @@ async def generate_live_parlays(sport: str, moneylines: List[Dict], count: int =
     if len(moneylines) < 3:
         return []
     
-    # Get comprehensive live data for real-time parlay intelligence  
-    live_data = await live_sports_service.get_comprehensive_live_data(sport)
+    # Get comprehensive live data for real-time parlay intelligence from TheOddsAPI
+    try:
+        odds_events = await odds_service.get_odds(
+            sport=sport,
+            regions=['us', 'us2'],
+            markets=['h2h', 'spreads']
+        )
+        live_data = {'timestamp': datetime.now(EST_TZ).isoformat(), 'volume_indicator': 'Medium', 'market_activity': 1.0}
+    except Exception as e:
+        logger.error(f"Error fetching parlay data: {e}")
+        live_data = {'timestamp': 'N/A', 'volume_indicator': 'Low', 'market_activity': 0.5}
     live_odds_data = live_data
     
     # Enhanced real-time market context
@@ -810,20 +847,17 @@ async def get_global_sports():
 @app.get("/api/recommendations/{sport}")
 async def get_sport_recommendations(sport: str, date: str = "today"):
     """Get moneyline recommendations for a specific sport with date filtering"""
-    # Support sport aliases
-    sport_aliases = {
-        'UFC': 'MMA',
-        'UCL': 'CHAMPIONSLEAGUE',
-        'NCAAB': 'NBA',  # Fallback to NBA structure
-        'NCAAF': 'NFL',  # Fallback to NFL structure
-        'F1': 'FORMULA1',
-        'SERIEA': 'SERIEA',
-        'LIGUE1': 'LIGUE1'
-    }
-    sport = sport_aliases.get(sport.upper(), sport.upper())
+    # Use TheOddsAPI sport keys directly (lowercase with underscores)
+    # Examples: basketball_nba, basketball_ncaab, americanfootball_nfl, soccer_epl
+    sport_lower = sport.lower()
     
-    if sport not in GLOBAL_SPORTS_CONFIG:
-        raise HTTPException(status_code=404, detail=f"Sport '{sport}' not supported")
+    # Get sport configuration (creates fallback if not found)
+    sport_config = get_sport_config(sport_lower)
+    
+    # Update GLOBAL_SPORTS_CONFIG if needed
+    if sport_lower not in GLOBAL_SPORTS_CONFIG:
+        GLOBAL_SPORTS_CONFIG[sport_lower] = sport_config
+        logger.info(f"Added new sport config for: {sport_lower}")
     
     # Calculate target date
     now = datetime.now(EST_TZ)
@@ -861,8 +895,33 @@ async def get_sport_recommendations(sport: str, date: str = "today"):
 @app.get("/api/player-props/{sport}")
 async def get_player_props(sport: str):
     """Get player prop predictions for a specific sport"""
+    # Map The Odds API lowercase keys to uppercase config keys
+    odds_api_to_config = {
+        'basketball_nba': 'NBA', 'basketball_ncaab': 'NBA',
+        'americanfootball_nfl': 'NFL', 'americanfootball_ncaaf': 'NFL',
+        'icehockey_nhl': 'NHL', 'baseball_mlb': 'MLB',
+        'soccer_epl': 'EPL', 'soccer_spain_la_liga': 'LALIGA',
+    }
+    sport_lower = sport.lower()
+    original_sport_key = sport
+    if sport_lower in odds_api_to_config:
+        sport = odds_api_to_config[sport_lower]
+    else:
+        sport = sport.upper()
+    
     if sport not in GLOBAL_SPORTS_CONFIG:
-        raise HTTPException(status_code=404, detail=f"Sport '{sport}' not supported")
+        logger.warning(f"Sport '{sport}' not in config, using generic fallback for '{original_sport_key}'")
+        GLOBAL_SPORTS_CONFIG[sport] = {
+            'category': 'Other Sports',
+            'display_name': sport.replace('_', ' ').title(),
+            'region': 'Global',
+            'supports_parlays': True,
+            'supports_player_props': False,
+            'markets': ['Moneyline', 'Spread', 'Over/Under'],
+            'teams': [],
+            'season_active': True,
+            'live_betting': True
+        }
     
     player_props = generate_advanced_player_props(sport)
     
@@ -877,18 +936,40 @@ async def get_player_props(sport: str):
 @app.get("/api/parlays/{sport}")
 async def get_parlays(sport: str, date: str = "today"):
     """Get intelligent parlay combinations for a specific sport with date filtering"""
-    # Support sport aliases
-    sport_aliases = {
-        'UFC': 'MMA',
-        'UCL': 'CHAMPIONSLEAGUE',
-        'NCAAB': 'NBA',
-        'NCAAF': 'NFL',
-        'F1': 'FORMULA1'
+    # Map The Odds API lowercase keys to our uppercase GLOBAL_SPORTS_CONFIG keys
+    odds_api_to_config = {
+        'basketball_nba': 'NBA', 'basketball_ncaab': 'NBA', 'basketball_wnba': 'WNBA',
+        'americanfootball_nfl': 'NFL', 'americanfootball_ncaaf': 'NFL',
+        'icehockey_nhl': 'NHL', 'baseball_mlb': 'MLB',
+        'soccer_epl': 'EPL', 'soccer_spain_la_liga': 'LALIGA',
+        'soccer_germany_bundesliga': 'BUNDESLIGA', 'soccer_italy_serie_a': 'SERIEA',
+        'soccer_france_ligue_1': 'LIGUE1', 'soccer_uefa_champs_league': 'CHAMPIONSLEAGUE',
+        'mma_mixed_martial_arts': 'MMA', 'boxing_boxing': 'BOXING',
     }
-    sport = sport_aliases.get(sport.upper(), sport.upper())
+    
+    sport_lower = sport.lower()
+    original_sport_key = sport
+    if sport_lower in odds_api_to_config:
+        sport = odds_api_to_config[sport_lower]
+    else:
+        sport_aliases = {
+            'UFC': 'MMA', 'UCL': 'CHAMPIONSLEAGUE', 'NCAAB': 'NBA', 'NCAAF': 'NFL', 'F1': 'FORMULA1'
+        }
+        sport = sport_aliases.get(sport.upper(), sport.upper())
     
     if sport not in GLOBAL_SPORTS_CONFIG:
-        raise HTTPException(status_code=404, detail=f"Sport '{sport}' not supported")
+        logger.warning(f"Sport '{sport}' not in config, using generic fallback for '{original_sport_key}'")
+        GLOBAL_SPORTS_CONFIG[sport] = {
+            'category': 'Other Sports',
+            'display_name': sport.replace('_', ' ').title(),
+            'region': 'Global',
+            'supports_parlays': True,
+            'supports_player_props': False,
+            'markets': ['Moneyline', 'Spread', 'Over/Under'],
+            'teams': [],
+            'season_active': True,
+            'live_betting': True
+        }
     
     # Calculate target date
     now = datetime.now(EST_TZ)
