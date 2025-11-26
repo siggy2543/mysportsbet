@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './EnhancedInteractiveApp.css';
 
+// Sport emoji mapping for better UI (outside component to avoid re-creation)
+const sportEmojiMap = {
+  'basketball': '🏀', 'americanfootball': '🏈', 'icehockey': '🏒', 'baseball': '⚾',
+  'soccer': '⚽', 'tennis': '🎾', 'cricket': '🏏', 'rugby': '🏉', 'formula1': '🏎️',
+  'mma': '🥊', 'boxing': '🥊', 'golf': '⛳', 'cycling': '🚴', 'darts': '🎯',
+  'aussierules': '🏉', 'volleyball': '🏐', 'handball': '🤾', 'waterpolo': '🤽',
+  'tableTennis': '🏓', 'esports': '🎮', 'snooker': '🎱', 'bowls': '🎳'
+};
+
 const EnhancedLiveBettingPlatform = () => {
   // API Base URL - Use port 8000 for API access
   const API_BASE_URL = 'http://localhost:8000';
@@ -16,48 +25,64 @@ const EnhancedLiveBettingPlatform = () => {
   const [error, setError] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [parlayLegs, setParlayLegs] = useState(2); // New: 2, 3, 4, or 5 legs
+  const [parlayBuilder, setParlayBuilder] = useState([]); // New: Multi-leg parlay builder
   
   // Use ref to track loading state for useCallback dependency
   const isLoadingRef = useRef(false);
 
-  // Enhanced 22+ Global Sports with betting markets
-  const globalSportsOptions = [
-    // US Sports
-    { value: 'NBA', label: '🏀 NBA Basketball', region: 'US', markets: ['ML', 'O/U', 'Props', 'Parlays'] },
-    { value: 'NFL', label: '🏈 NFL Football', region: 'US', markets: ['ML', 'Spread', 'O/U', 'Props', 'Parlays'] },
-    { value: 'NHL', label: '🏒 NHL Hockey', region: 'US', markets: ['ML', 'Puckline', 'O/U', 'Parlays'] },
-    { value: 'MLB', label: '⚾ MLB Baseball', region: 'US', markets: ['ML', 'Runline', 'O/U', 'Props', 'Parlays'] },
+  // Dynamic sports loaded from The Odds API (all 149 sports)
+  const [globalSportsOptions, setGlobalSportsOptions] = useState([]);
+  const [sportsLoading, setSportsLoading] = useState(true);
+  
+  // Load all 149 sports from The Odds API on mount
+  useEffect(() => {
+    const fetchSports = async () => {
+      try {
+        setSportsLoading(true);
+        const response = await fetch(`${API_BASE_URL}/api/odds/sports`);
+        const data = await response.json();
+        
+        if (data.sports) {
+          const formattedSports = data.sports.map(sport => {
+            // Get emoji based on sport group/title
+            const sportKey = sport.group.toLowerCase().replace(/_/g, '');
+            const emoji = sportEmojiMap[sportKey] || sportEmojiMap[sport.key.toLowerCase()] || '🏆';
+            
+            return {
+              value: sport.key,
+              label: `${emoji} ${sport.title}`,
+              region: sport.group,
+              active: sport.active,
+              has_outrights: sport.has_outrights,
+              description: sport.description,
+              markets: ['ML', 'Spread', 'O/U', 'Props', 'Parlays']
+            };
+          });
+          
+          // Sort by active first, then alphabetically
+          formattedSports.sort((a, b) => {
+            if (a.active !== b.active) return b.active - a.active;
+            return a.label.localeCompare(b.label);
+          });
+          
+          setGlobalSportsOptions(formattedSports);
+          console.log(`✅ Loaded ${data.total_sports} sports (${data.active_sports} active)`);
+        }
+      } catch (err) {
+        console.error('Error fetching sports:', err);
+        setError('Failed to load sports list');
+        // Fallback to default NBA if API fails
+        setGlobalSportsOptions([
+          { value: 'NBA', label: '🏀 NBA Basketball', region: 'Basketball', active: true, markets: ['ML', 'O/U', 'Props', 'Parlays'] }
+        ]);
+      } finally {
+        setSportsLoading(false);
+      }
+    };
     
-    // Global Soccer
-    { value: 'EPL', label: '⚽ Premier League', region: 'UK', markets: ['ML', '3-Way', 'O/U', 'Props', 'Parlays'] },
-    { value: 'LALIGA', label: '⚽ La Liga', region: 'Spain', markets: ['ML', '3-Way', 'O/U', 'Props', 'Parlays'] },
-    { value: 'BUNDESLIGA', label: '⚽ Bundesliga', region: 'Germany', markets: ['ML', '3-Way', 'O/U', 'Props', 'Parlays'] },
-    { value: 'SERIEA', label: '⚽ Serie A', region: 'Italy', markets: ['ML', '3-Way', 'O/U', 'Props', 'Parlays'] },
-    { value: 'LIGUE1', label: '⚽ Ligue 1', region: 'France', markets: ['ML', '3-Way', 'O/U', 'Parlays'] },
-    { value: 'CHAMPIONSLEAGUE', label: '⚽ Champions League', region: 'Europe', markets: ['ML', '3-Way', 'O/U', 'Props', 'Parlays'] },
-    
-    // Global Tennis
-    { value: 'ATP', label: '🎾 ATP Tennis', region: 'Global', markets: ['ML', 'Sets', 'Props', 'Parlays'] },
-    { value: 'WTA', label: '🎾 WTA Tennis', region: 'Global', markets: ['ML', 'Sets', 'Props', 'Parlays'] },
-    
-    // International Sports
-    { value: 'CRICKET', label: '🏏 Cricket', region: 'Global', markets: ['ML', 'O/U', 'Props', 'Parlays'] },
-    { value: 'RUGBY', label: '🏉 Rugby', region: 'Global', markets: ['ML', 'Handicap', 'O/U', 'Parlays'] },
-    { value: 'FORMULA1', label: '🏎️ Formula 1', region: 'Global', markets: ['Winner', 'Podium', 'Props', 'Parlays'] },
-    
-    // Combat Sports
-    { value: 'MMA', label: '🥊 MMA/UFC', region: 'Global', markets: ['ML', 'Method', 'O/U', 'Props', 'Parlays'] },
-    { value: 'BOXING', label: '🥊 Boxing', region: 'Global', markets: ['ML', 'Method', 'O/U', 'Props', 'Parlays'] },
-    
-    // Individual Sports
-    { value: 'GOLF', label: '⛳ Golf', region: 'Global', markets: ['Tournament', 'Props', 'Parlays'] },
-    { value: 'CYCLING', label: '🚴 Cycling', region: 'Global', markets: ['Winner', 'Props', 'Parlays'] },
-    { value: 'DARTS', label: '🎯 Darts', region: 'Global', markets: ['ML', 'Handicap', 'Props', 'Parlays'] },
-    { value: 'SNOOKER', label: '🎱 Snooker', region: 'Global', markets: ['ML', 'Handicap', 'Props', 'Parlays'] },
-    
-    // E-Sports
-    { value: 'ESPORTS', label: '🎮 E-Sports', region: 'Global', markets: ['ML', 'Maps', 'Props', 'Parlays'] }
-  ];
+    fetchSports();
+  }, [API_BASE_URL]);
 
   // Enhanced API Data Fetching
   const fetchComprehensiveData = useCallback(async () => {
@@ -196,6 +221,15 @@ const EnhancedLiveBettingPlatform = () => {
       return formatOdds(odds.american);
     }
     return 'N/A';
+  };
+
+  const convertOddsToDecimal = (odds) => {
+    if (typeof odds !== 'number') return 1;
+    if (odds > 0) {
+      return 1 + (odds / 100);
+    } else {
+      return 1 + (100 / Math.abs(odds));
+    }
   };
 
   const getSelectedSportInfo = () => {
@@ -406,7 +440,7 @@ const EnhancedLiveBettingPlatform = () => {
         <div className="header-title">
           <h1>🎯 Live Global Sports Betting Platform</h1>
           <div className="platform-tagline">
-            22+ Global Sports • AI-Powered Predictions • Live Parlay Intelligence
+            149 Global Sports • AI-Powered Predictions • Multi-Leg Parlay Builder (2-5 Legs)
           </div>
         </div>
         
@@ -422,7 +456,7 @@ const EnhancedLiveBettingPlatform = () => {
           </div>
           <div className="stat-item">
             <span className="stat-label">Global Sports:</span>
-            <span className="stat-value">22+</span>
+            <span className="stat-value">{sportsLoading ? '...' : globalSportsOptions.length}</span>
           </div>
           <div className="stat-item">
             <span className="stat-label">Auto-Refresh:</span>
@@ -528,6 +562,14 @@ const EnhancedLiveBettingPlatform = () => {
           <span className="tab-icon">🎯</span>
           <span className="tab-label">Intelligent Parlays</span>
           <span className="tab-count">({parlays.length})</span>
+        </button>
+        <button 
+          className={`nav-tab ${activeTab === 'parlay-builder' ? 'active' : ''}`}
+          onClick={() => setActiveTab('parlay-builder')}
+        >
+          <span className="tab-icon">🏗️</span>
+          <span className="tab-label">Parlay Builder</span>
+          <span className="tab-count">({parlayLegs} Legs)</span>
         </button>
       </div>
 
@@ -726,15 +768,172 @@ const EnhancedLiveBettingPlatform = () => {
             </div>
           </div>
         )}
+        
+        {/* NEW: Multi-Leg Parlay Builder */}
+        {activeTab === 'parlay-builder' && (
+          <div className="parlay-builder-section">
+            <div className="section-header">
+              <h2>🏗️ Custom Parlay Builder - {selectedSport}</h2>
+              <div className="builder-controls">
+                <label>Select Number of Legs:</label>
+                <div className="leg-selector">
+                  {[2, 3, 4, 5].map(legs => (
+                    <button
+                      key={legs}
+                      className={`leg-option ${parlayLegs === legs ? 'active' : ''}`}
+                      onClick={() => {
+                        setParlayLegs(legs);
+                        // Initialize parlay builder with empty legs
+                        setParlayBuilder(Array(legs).fill(null));
+                      }}
+                    >
+                      {legs} Legs
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="builder-grid">
+              {parlayBuilder.map((leg, index) => (
+                <div key={index} className="builder-leg-slot">
+                  <div className="leg-slot-header">
+                    <span className="leg-number">Leg {index + 1}</span>
+                    {leg && (
+                      <button 
+                        className="remove-leg"
+                        onClick={() => {
+                          const newBuilder = [...parlayBuilder];
+                          newBuilder[index] = null;
+                          setParlayBuilder(newBuilder);
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  
+                  {leg ? (
+                    <div className="selected-leg">
+                      <div className="leg-matchup">{leg.matchup}</div>
+                      <div className="leg-bet">{leg.bet}</div>
+                      <div className="leg-odds">{formatOdds(leg.odds)}</div>
+                    </div>
+                  ) : (
+                    <div className="empty-leg-slot">
+                      <div className="slot-icon">➕</div>
+                      <div className="slot-text">Select a bet from available games</div>
+                      <select 
+                        className="game-selector"
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            // Parse the selected game and add it to the parlay
+                            const gameData = JSON.parse(e.target.value);
+                            const newBuilder = [...parlayBuilder];
+                            newBuilder[index] = gameData;
+                            setParlayBuilder(newBuilder);
+                          }
+                        }}
+                      >
+                        <option value="">Choose a game...</option>
+                        {moneylines.slice(0, 10).map((game, gameIdx) => (
+                          <React.Fragment key={gameIdx}>
+                            <option value={JSON.stringify({
+                              matchup: `${game.home_team} vs ${game.away_team}`,
+                              bet: `${game.home_team} ML`,
+                              odds: game.home_odds
+                            })}>
+                              {game.home_team} ML ({formatOdds(game.home_odds)})
+                            </option>
+                            <option value={JSON.stringify({
+                              matchup: `${game.home_team} vs ${game.away_team}`,
+                              bet: `${game.away_team} ML`,
+                              odds: game.away_odds
+                            })}>
+                              {game.away_team} ML ({formatOdds(game.away_odds)})
+                            </option>
+                          </React.Fragment>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Parlay Summary */}
+            {parlayBuilder.filter(leg => leg !== null).length >= 2 && (
+              <div className="parlay-summary">
+                <div className="summary-header">
+                  <h3>📊 Parlay Summary</h3>
+                </div>
+                <div className="summary-stats">
+                  <div className="stat-item">
+                    <span className="stat-label">Total Legs:</span>
+                    <span className="stat-value">{parlayBuilder.filter(leg => leg !== null).length}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">Combined Odds:</span>
+                    <span className="stat-value">
+                      {formatOdds(
+                        parlayBuilder
+                          .filter(leg => leg !== null)
+                          .reduce((total, leg) => total * convertOddsToDecimal(leg.odds), 1)
+                      )}
+                    </span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">$100 Bet Pays:</span>
+                    <span className="stat-value payout">
+                      ${(
+                        100 * 
+                        parlayBuilder
+                          .filter(leg => leg !== null)
+                          .reduce((total, leg) => total * convertOddsToDecimal(leg.odds), 1)
+                      ).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                <div className="summary-actions">
+                  <button 
+                    className="btn-place-parlay"
+                    onClick={() => {
+                      alert('Parlay saved! Visit your sportsbook to place this bet manually.');
+                      // Reset builder
+                      setParlayBuilder(Array(parlayLegs).fill(null));
+                    }}
+                  >
+                    💰 Save Parlay (Manual Placement Required)
+                  </button>
+                  <button 
+                    className="btn-clear-parlay"
+                    onClick={() => setParlayBuilder(Array(parlayLegs).fill(null))}
+                  >
+                    🗑️ Clear All
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {parlayBuilder.filter(leg => leg !== null).length < 2 && (
+              <div className="builder-hint">
+                <span className="hint-icon">💡</span>
+                <span className="hint-text">
+                  Select at least 2 legs to build a parlay. Higher legs = higher payout but lower chance of winning!
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Enhanced Footer */}
       <div className="platform-footer">
         <div className="footer-stats">
-          <span>🌍 22+ Global Sports Coverage</span>
+          <span>🌍 149 Global Sports Coverage</span>
           <span>🧠 AI Game Theory Algorithms</span>
-          <span>🎯 Live Parlay Intelligence</span>
-          <span>📊 Real-time Data Updates</span>
+          <span>🎯 Multi-Leg Parlay Builder (2-5 Legs)</span>
+          <span>📊 Real-time Live Odds via The Odds API</span>
         </div>
         <div className="footer-disclaimer">
           <span>⚖️ Manual betting required for legal compliance</span>

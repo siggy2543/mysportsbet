@@ -1,0 +1,106 @@
+{
+    "taskDefinitionArn": "arn:aws:ecs:us-east-1:939309566574:task-definition/sports-app-production-api:1",
+    "containerDefinitions": [
+        {
+            "name": "api",
+            "image": "your-account.dkr.ecr.us-east-1.amazonaws.com/sports-app-api:latest",
+            "cpu": 0,
+            "portMappings": [
+                {
+                    "containerPort": 8000,
+                    "hostPort": 8000,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "DATABASE_URL",
+                    "value": "postgresql://sportsapp:GoSkinsGo2543!Prod@sports-app-production-database.civ6ssa4w6fq.us-east-1.rds.amazonaws.com:5432:5432/sportsapp"
+                },
+                {
+                    "name": "REDIS_URL",
+                    "value": "redis://sports-app-production-redis.mvmufa.0001.use1.cache.amazonaws.com:6379"
+                },
+                {
+                    "name": "ENVIRONMENT",
+                    "value": "production"
+                }
+            ],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "secrets": [
+                {
+                    "name": "OPENAI_API_KEY",
+                    "valueFrom": "arn:aws:ssm:us-east-1:939309566574:parameter/sports-app-production/openai/api-key"
+                },
+                {
+                    "name": "DRAFTKINGS_USERNAME",
+                    "valueFrom": "arn:aws:ssm:us-east-1:939309566574:parameter/sports-app-production/draftkings/username"
+                },
+                {
+                    "name": "DRAFTKINGS_PASSWORD",
+                    "valueFrom": "arn:aws:ssm:us-east-1:939309566574:parameter/sports-app-production/draftkings/password"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/sports-app-production-api",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "api"
+                }
+            },
+            "systemControls": []
+        }
+    ],
+    "family": "sports-app-production-api",
+    "taskRoleArn": "arn:aws:iam::939309566574:role/sports-app-production-ecs-task-role",
+    "executionRoleArn": "arn:aws:iam::939309566574:role/sports-app-production-ecs-execution-role",
+    "networkMode": "awsvpc",
+    "revision": 1,
+    "volumes": [],
+    "status": "ACTIVE",
+    "requiresAttributes": [
+        {
+            "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+        },
+        {
+            "name": "ecs.capability.execution-role-awslogs"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.ecr-auth"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.task-iam-role"
+        },
+        {
+            "name": "ecs.capability.execution-role-ecr-pull"
+        },
+        {
+            "name": "ecs.capability.secrets.ssm.environment-variables"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+        },
+        {
+            "name": "ecs.capability.task-eni"
+        }
+    ],
+    "placementConstraints": [],
+    "compatibilities": [
+        "EC2",
+        "FARGATE",
+        "MANAGED_INSTANCES"
+    ],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "512",
+    "memory": "1024",
+    "registeredAt": "2025-11-05T21:25:59.338000-05:00",
+    "registeredBy": "arn:aws:iam::939309566574:user/sbatoula.sgb"
+}

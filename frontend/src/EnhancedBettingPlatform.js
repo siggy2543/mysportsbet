@@ -292,6 +292,7 @@ const AdvancedFilters = memo(({ filters, onChange }) => {
 const EnhancedBettingPlatform = () => {
   const [selectedSport, setSelectedSport] = useState('NBA');
   const [selectedDate, setSelectedDate] = useState('today');
+  const [activeTab, setActiveTab] = useState('bets'); // 'bets' or 'parlay-builder'
   const [moneylines, setMoneylines] = useState([]);
   const [parlays, setParlays] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -312,33 +313,67 @@ const EnhancedBettingPlatform = () => {
     sortBy: 'confidence'
   });
 
+  // Parlay Builder State
+  const [parlayLegs, setParlayLegs] = useState(3);
+  const [parlayBuilder, setParlayBuilder] = useState([]);
+  const [parlayStake, setParlayStake] = useState(100);
+
   const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
-  // Sports options (same as before)
-  const sportsOptions = useMemo(() => [
-    { value: 'NBA', label: '🏀 NBA Basketball', region: 'US' },
-    { value: 'NFL', label: '🏈 NFL Football', region: 'US' },
-    { value: 'NHL', label: '🏒 NHL Hockey', region: 'US' },
-    { value: 'MLB', label: '⚾ MLB Baseball', region: 'US' },
-    { value: 'NCAAB', label: '🏀 NCAA Basketball', region: 'US' },
-    { value: 'NCAAF', label: '🏈 NCAA Football', region: 'US' },
-    { value: 'EPL', label: '⚽ English Premier League', region: 'UK' },
-    { value: 'LALIGA', label: '⚽ La Liga', region: 'ES' },
-    { value: 'BUNDESLIGA', label: '⚽ Bundesliga', region: 'DE' },
-    { value: 'SERIEA', label: '⚽ Serie A', region: 'IT' },
-    { value: 'LIGUE1', label: '⚽ Ligue 1', region: 'FR' },
-    { value: 'UCL', label: '⚽ Champions League', region: 'EU' },
-    { value: 'MLS', label: '⚽ MLS', region: 'US' },
-    { value: 'MMA', label: '🥊 MMA', region: 'Global' },
-    { value: 'UFC', label: '🥊 UFC', region: 'Global' },
-    { value: 'BOXING', label: '🥊 Boxing', region: 'Global' },
-    { value: 'ATP', label: '🎾 ATP Tennis', region: 'Global' },
-    { value: 'WTA', label: '🎾 WTA Tennis', region: 'Global' },
-    { value: 'GOLF', label: '⛳ Golf', region: 'Global' },
-    { value: 'NASCAR', label: '🏎️ NASCAR', region: 'US' },
-    { value: 'F1', label: '🏎️ Formula 1', region: 'Global' },
-    { value: 'ESPORTS', label: '🎮 E-Sports', region: 'Global' }
-  ], []);
+  // Dynamic sports loaded from The Odds API (all 149 sports)
+  const [sportsOptions, setSportsOptions] = useState([]);
+  const [sportsLoading, setSportsLoading] = useState(true);
+
+  // Load all 149 sports from The Odds API on mount
+  useEffect(() => {
+    const fetchSports = async () => {
+      try {
+        setSportsLoading(true);
+        const response = await fetch(`${API_BASE_URL}/api/odds/sports`);
+        const data = await response.json();
+        
+        if (data.sports) {
+          const formattedSports = data.sports.map(sport => {
+            // Get emoji based on sport group
+            const sportKey = sport.group.toLowerCase().replace(/[\s_]/g, '');
+            const emojiMap = {
+              'americanfootball': '🏈', 'basketball': '🏀', 'icehockey': '🏒',
+              'baseball': '⚾', 'soccer': '⚽', 'tennis': '🎾', 'cricket': '🏏',
+              'rugby': '🏉', 'boxing': '🥊', 'mma': '🥊', 'golf': '⛳',
+              'motorsport': '🏎️', 'aussierules': '🏉', 'darts': '🎯',
+              'volleyball': '🏐', 'handball': '🤾', 'tabletennis': '🏓'
+            };
+            const emoji = emojiMap[sportKey] || '🏆';
+            
+            return {
+              value: sport.key,
+              label: `${emoji} ${sport.title}`,
+              group: sport.group,
+              active: sport.active,
+              description: sport.description
+            };
+          });
+          
+          // Sort: active sports first, then alphabetically
+          formattedSports.sort((a, b) => {
+            if (a.active !== b.active) return b.active - a.active;
+            return a.label.localeCompare(b.label);
+          });
+          
+          setSportsOptions(formattedSports);
+          console.log(`✅ Loaded ${data.total_sports} sports (${data.active_sports} active)`);
+        }
+      } catch (err) {
+        console.error('❌ Error fetching sports:', err);
+        // Fallback to NBA if API fails
+        setSportsOptions([{ value: 'NBA', label: '🏀 NBA Basketball', active: true }]);
+      } finally {
+        setSportsLoading(false);
+      }
+    };
+    
+    fetchSports();
+  }, [API_BASE_URL]);
 
   // No client-side filtering needed - API already filters by date
   const filteredMoneylines = useMemo(() => {
@@ -484,7 +519,7 @@ const EnhancedBettingPlatform = () => {
     <div className="optimized-betting-platform">
       <header className="platform-header">
         <div className="header-content">
-          <h1>🎰 AI-Powered Sports Betting</h1>
+          <h1>🎰 AI-Powered Sports Betting - 149 Global Sports</h1>
           <div className="header-stats">
             <span className="stat">📊 {filteredMoneylines.length} Bets</span>
             <span className="stat">🎯 {filteredParlays.length} Parlays</span>
@@ -515,13 +550,52 @@ const EnhancedBettingPlatform = () => {
 
       <div className="main-layout">
         <div className="bets-section">
+          <div className="tab-selector" style={{marginBottom: '20px', display: 'flex', gap: '10px', borderBottom: '2px solid #333'}}>
+            <button 
+              className={activeTab === 'bets' ? 'tab-active' : 'tab-inactive'}
+              onClick={() => setActiveTab('bets')}
+              style={{
+                padding: '10px 20px',
+                background: activeTab === 'bets' ? '#4CAF50' : '#333',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px 8px 0 0',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: 'bold'
+              }}
+            >
+              💰 Live Bets
+            </button>
+            <button 
+              className={activeTab === 'parlay-builder' ? 'tab-active' : 'tab-inactive'}
+              onClick={() => setActiveTab('parlay-builder')}
+              style={{
+                padding: '10px 20px',
+                background: activeTab === 'parlay-builder' ? '#4CAF50' : '#333',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px 8px 0 0',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: 'bold'
+              }}
+            >
+              🎯 Parlay Builder (2-5 Legs)
+            </button>
+          </div>
+
           <div className="controls-bar">
             <div className="sport-selector">
-              <label>Sport:</label>
-              <select value={selectedSport} onChange={(e) => setSelectedSport(e.target.value)}>
+              <label>Sport ({sportsLoading ? 'Loading...' : `${sportsOptions.length} available`}):</label>
+              <select 
+                value={selectedSport} 
+                onChange={(e) => setSelectedSport(e.target.value)}
+                disabled={sportsLoading}
+              >
                 {sportsOptions.map(sport => (
                   <option key={sport.value} value={sport.value}>
-                    {sport.label}
+                    {sport.label} {!sport.active ? '(Inactive)' : ''}
                   </option>
                 ))}
               </select>
@@ -557,44 +631,282 @@ const EnhancedBettingPlatform = () => {
             </div>
           )}
 
-          <div className="bets-content">
-            <section className="moneyline-section">
-              <h2>💰 Moneyline Bets ({filteredMoneylines.length})</h2>
-              {filteredMoneylines.length === 0 && !loading ? (
-                <div className="no-bets">
-                  <p>No bets match your filters</p>
-                  <small>Try adjusting your filter settings</small>
-                </div>
-              ) : (
-                <div className="bets-grid">
-                  {filteredMoneylines.map((bet, idx) => (
-                    <MoneylineCard 
-                      key={`${bet.id}-${idx}`} 
-                      bet={bet} 
+          {activeTab === 'bets' && (
+            <div className="bets-content">
+              <section className="moneyline-section">
+                <h2>💰 Moneyline Bets ({filteredMoneylines.length})</h2>
+                {filteredMoneylines.length === 0 && !loading ? (
+                  <div className="no-bets">
+                    <p>No bets match your filters</p>
+                    <small>Try adjusting your filter settings</small>
+                  </div>
+                ) : (
+                  <div className="bets-grid">
+                    {filteredMoneylines.map((bet, idx) => (
+                      <MoneylineCard 
+                        key={`${bet.id}-${idx}`} 
+                        bet={bet} 
+                        dateType={selectedDate}
+                        onAddToSlip={addToBetSlip}
+                        inSlip={betSlip.some(b => b.id === bet.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="parlay-section">
+                <h2>🎲 Parlay Combinations ({filteredParlays.length})</h2>
+                <div className="parlays-grid">
+                  {filteredParlays.map((parlay, idx) => (
+                    <ParlayCard 
+                      key={`${parlay.id}-${idx}`} 
+                      parlay={parlay} 
                       dateType={selectedDate}
                       onAddToSlip={addToBetSlip}
-                      inSlip={betSlip.some(b => b.id === bet.id)}
+                      inSlip={betSlip.some(b => b.id === parlay.id)}
                     />
                   ))}
                 </div>
-              )}
-            </section>
+              </section>
+            </div>
+          )}
 
-            <section className="parlay-section">
-              <h2>🎲 Parlay Combinations ({filteredParlays.length})</h2>
-              <div className="parlays-grid">
-                {filteredParlays.map((parlay, idx) => (
-                  <ParlayCard 
-                    key={`${parlay.id}-${idx}`} 
-                    parlay={parlay} 
-                    dateType={selectedDate}
-                    onAddToSlip={addToBetSlip}
-                    inSlip={betSlip.some(b => b.id === parlay.id)}
-                  />
-                ))}
+          {activeTab === 'parlay-builder' && (
+            <div className="parlay-builder-content" style={{padding: '20px', background: '#1a1a1a', borderRadius: '12px'}}>
+              <h2 style={{marginBottom: '20px', color: '#4CAF50'}}>🎯 Custom Parlay Builder</h2>
+              
+              <div style={{marginBottom: '30px', padding: '20px', background: '#222', borderRadius: '8px'}}>
+                <label style={{display: 'block', marginBottom: '10px', fontSize: '16px', fontWeight: 'bold'}}>
+                  Select Number of Legs:
+                </label>
+                <div style={{display: 'flex', gap: '10px'}}>
+                  {[2, 3, 4, 5].map(legs => (
+                    <button
+                      key={legs}
+                      onClick={() => setParlayLegs(legs)}
+                      style={{
+                        padding: '12px 24px',
+                        background: parlayLegs === legs ? '#4CAF50' : '#333',
+                        color: 'white',
+                        border: parlayLegs === legs ? '2px solid #66ff66' : '2px solid #444',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        transition: 'all 0.3s'
+                      }}
+                    >
+                      {legs} Legs
+                    </button>
+                  ))}
+                </div>
               </div>
-            </section>
-          </div>
+
+              <div style={{marginBottom: '30px'}}>
+                <h3 style={{marginBottom: '15px', color: '#66ff66'}}>
+                  Select {parlayLegs} Games (Current: {parlayBuilder.length}/{parlayLegs})
+                </h3>
+                {filteredMoneylines.length === 0 ? (
+                  <div className="no-bets">
+                    <p>No games available for {selectedSport}</p>
+                    <small>Try selecting a different sport or date</small>
+                  </div>
+                ) : (
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px'}}>
+                    {filteredMoneylines.slice(0, 10).map((bet, idx) => {
+                      const isInParlay = parlayBuilder.some(b => b.id === bet.id);
+                      const canAdd = parlayBuilder.length < parlayLegs;
+                      
+                      return (
+                        <div 
+                          key={`parlay-${bet.id}-${idx}`}
+                          style={{
+                            padding: '15px',
+                            background: isInParlay ? '#2d5a2d' : '#2a2a2a',
+                            border: isInParlay ? '2px solid #4CAF50' : '2px solid #444',
+                            borderRadius: '8px',
+                            cursor: canAdd || isInParlay ? 'pointer' : 'not-allowed',
+                            opacity: (!canAdd && !isInParlay) ? 0.5 : 1,
+                            transition: 'all 0.3s'
+                          }}
+                          onClick={() => {
+                            if (isInParlay) {
+                              setParlayBuilder(parlayBuilder.filter(b => b.id !== bet.id));
+                            } else if (canAdd) {
+                              setParlayBuilder([...parlayBuilder, bet]);
+                            }
+                          }}
+                        >
+                          <div style={{marginBottom: '10px'}}>
+                            <strong style={{color: '#4CAF50', fontSize: '14px'}}>{bet.matchup}</strong>
+                          </div>
+                          <div style={{marginBottom: '8px'}}>
+                            <span style={{color: '#aaa', fontSize: '12px'}}>Pick: </span>
+                            <span style={{color: 'white', fontWeight: 'bold'}}>{bet.bet}</span>
+                          </div>
+                          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                            <span style={{color: '#ffcc00', fontWeight: 'bold'}}>
+                              {bet.odds?.recommended_odds > 0 ? '+' : ''}{bet.odds?.recommended_odds}
+                            </span>
+                            <span style={{
+                              padding: '4px 8px',
+                              background: bet.confidence >= 75 ? '#2d5a2d' : '#5a4d2d',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 'bold'
+                            }}>
+                              {bet.confidence}% Conf
+                            </span>
+                          </div>
+                          {isInParlay && (
+                            <div style={{marginTop: '10px', color: '#4CAF50', fontSize: '12px', textAlign: 'center'}}>
+                              ✓ In Parlay
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {parlayBuilder.length > 0 && (
+                <div style={{padding: '20px', background: '#222', borderRadius: '8px', marginTop: '20px'}}>
+                  <h3 style={{marginBottom: '15px', color: '#66ff66'}}>Your {parlayLegs}-Leg Parlay</h3>
+                  
+                  <div style={{marginBottom: '20px'}}>
+                    {parlayBuilder.map((bet, idx) => (
+                      <div 
+                        key={`selected-${bet.id}-${idx}`}
+                        style={{
+                          padding: '12px',
+                          background: '#2a2a2a',
+                          borderLeft: '4px solid #4CAF50',
+                          marginBottom: '10px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <div>
+                          <div style={{fontWeight: 'bold', marginBottom: '4px'}}>{bet.matchup}</div>
+                          <div style={{fontSize: '13px', color: '#aaa'}}>{bet.bet}</div>
+                        </div>
+                        <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
+                          <span style={{color: '#ffcc00', fontWeight: 'bold'}}>
+                            {bet.odds?.recommended_odds > 0 ? '+' : ''}{bet.odds?.recommended_odds}
+                          </span>
+                          <button
+                            onClick={() => setParlayBuilder(parlayBuilder.filter(b => b.id !== bet.id))}
+                            style={{
+                              background: '#d32f2f',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '6px 12px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {parlayBuilder.length === parlayLegs && (
+                    <div style={{marginTop: '20px', padding: '20px', background: '#1a3a1a', borderRadius: '8px', border: '2px solid #4CAF50'}}>
+                      <h4 style={{marginBottom: '15px', color: '#66ff66'}}>Parlay Summary</h4>
+                      <div style={{marginBottom: '15px'}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                          <span>Number of Legs:</span>
+                          <span style={{fontWeight: 'bold'}}>{parlayLegs}</span>
+                        </div>
+                        <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '8px'}}>
+                          <span>Combined Odds:</span>
+                          <span style={{color: '#ffcc00', fontWeight: 'bold'}}>
+                            {(() => {
+                              const decimalOdds = parlayBuilder.map(bet => {
+                                const odds = bet.odds?.recommended_odds || 0;
+                                return odds > 0 ? (odds / 100) + 1 : (100 / Math.abs(odds)) + 1;
+                              });
+                              const combined = decimalOdds.reduce((acc, odd) => acc * odd, 1);
+                              const americanOdds = combined >= 2 ? Math.round((combined - 1) * 100) : Math.round(-100 / (combined - 1));
+                              return americanOdds > 0 ? `+${americanOdds}` : americanOdds;
+                            })()}
+                          </span>
+                        </div>
+                        <div style={{marginBottom: '15px'}}>
+                          <label style={{display: 'block', marginBottom: '8px'}}>Stake Amount:</label>
+                          <input
+                            type="number"
+                            value={parlayStake}
+                            onChange={(e) => setParlayStake(parseFloat(e.target.value) || 0)}
+                            style={{
+                              width: '100%',
+                              padding: '10px',
+                              background: '#333',
+                              border: '1px solid #666',
+                              borderRadius: '4px',
+                              color: 'white',
+                              fontSize: '16px'
+                            }}
+                            min="1"
+                            step="10"
+                          />
+                        </div>
+                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '15px 0', borderTop: '1px solid #444'}}>
+                          <span style={{fontSize: '18px', fontWeight: 'bold'}}>Potential Payout:</span>
+                          <span style={{fontSize: '20px', color: '#4CAF50', fontWeight: 'bold'}}>
+                            ${(() => {
+                              const decimalOdds = parlayBuilder.map(bet => {
+                                const odds = bet.odds?.recommended_odds || 0;
+                                return odds > 0 ? (odds / 100) + 1 : (100 / Math.abs(odds)) + 1;
+                              });
+                              const combined = decimalOdds.reduce((acc, odd) => acc * odd, 1);
+                              return (parlayStake * combined).toFixed(2);
+                            })()}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          alert(`Placing ${parlayLegs}-leg parlay with $${parlayStake} stake!`);
+                          setParlayBuilder([]);
+                          setParlayStake(100);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '15px',
+                          background: '#4CAF50',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '8px',
+                          fontSize: '18px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          transition: 'all 0.3s'
+                        }}
+                        onMouseEnter={(e) => e.target.style.background = '#66ff66'}
+                        onMouseLeave={(e) => e.target.style.background = '#4CAF50'}
+                      >
+                        🎯 Place {parlayLegs}-Leg Parlay
+                      </button>
+                    </div>
+                  )}
+
+                  {parlayBuilder.length < parlayLegs && (
+                    <div style={{textAlign: 'center', padding: '15px', background: '#2a2a1a', borderRadius: '8px', color: '#ffcc00'}}>
+                      ⚠️ Select {parlayLegs - parlayBuilder.length} more game(s) to complete your parlay
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <aside className="bet-slip-sidebar">

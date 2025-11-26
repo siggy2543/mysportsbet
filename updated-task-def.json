@@ -1,0 +1,70 @@
+{
+  "family": "sports-app-production-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::939309566574:role/sports-app-production-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::939309566574:role/sports-app-production-ecs-task-role",
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "image": "939309566574.dkr.ecr.us-east-1.amazonaws.com/sports-app-api:latest",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "DATABASE_URL",
+          "value": "postgresql://sportsapp:GoSkinsGo2543!Prod@sports-app-production-database.civ6ssa4w6fq.us-east-1.rds.amazonaws.com:5432/sportsapp"
+        },
+        {
+          "name": "REDIS_URL",
+          "value": "redis://sports-app-production-redis.mvmufa.0001.use1.cache.amazonaws.com:6379"
+        },
+        {
+          "name": "ENVIRONMENT",
+          "value": "production"
+        },
+        {
+          "name": "TZ",
+          "value": "America/New_York"
+        },
+        {
+          "name": "DEBUG",
+          "value": "false"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:ssm:us-east-1:939309566574:parameter/sports-app-production/openai/api-key"
+        },
+        {
+          "name": "DRAFTKINGS_USERNAME",
+          "valueFrom": "arn:aws:ssm:us-east-1:939309566574:parameter/sports-app-production/draftkings/username"
+        },
+        {
+          "name": "DRAFTKINGS_PASSWORD",
+          "valueFrom": "arn:aws:ssm:us-east-1:939309566574:parameter/sports-app-production/draftkings/password"
+        },
+        {
+          "name": "THE_ODDS_API_KEY",
+          "valueFrom": "arn:aws:ssm:us-east-1:939309566574:parameter/sports-app-production-odds-api-key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/sports-app-production-api",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "api"
+        }
+      }
+    }
+  ]
+}

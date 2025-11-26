@@ -2,6 +2,7 @@
 Deep Learning Prediction Engine
 Advanced neural networks for sports betting predictions
 Uses LSTM, Transformer, and ensemble deep learning models
+Integrated with The Odds API for real-time market data
 """
 
 import numpy as np
@@ -13,6 +14,8 @@ import logging
 import asyncio
 import pickle
 import os
+
+from .odds_api_service import get_odds_api_service
 
 logger = logging.getLogger(__name__)
 
